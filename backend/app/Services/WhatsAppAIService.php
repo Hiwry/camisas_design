@@ -70,6 +70,10 @@ class WhatsAppAIService
             return false;
         }
 
+        if (trim($this->adminNumber) === '*') {
+            return true;
+        }
+
         $numeroNorm = $this->normalizarNumeroBR($numero);
         $admins = explode(',', $this->adminNumber);
 

@@ -152,7 +152,23 @@ class WhatsAppController extends Controller
         $fromMe   = false;
 
         if (isset($dados['key'])) {
-            $numero = $dados['key']['remoteJidAlt'] ?? $dados['key']['remoteJid'] ?? null;
+            // Se remoteJid for @lid, busca nos outros campos onde o número real está presente
+            $candidatos = [
+                $dados['key']['remoteJidAlt'] ?? null,
+                $dados['sender'] ?? null,
+                $dados['key']['participantAlt'] ?? null,
+                $dados['key']['participant'] ?? null,
+                $dados['key']['remoteJid'] ?? null,
+            ];
+            foreach ($candidatos as $cand) {
+                if ($cand && !str_contains($cand, '@lid')) {
+                    $numero = $cand;
+                    break;
+                }
+            }
+            if (!$numero && isset($dados['key']['remoteJid'])) {
+                $numero = $dados['key']['remoteJid'];
+            }
             $fromMe = $dados['key']['fromMe'] ?? false;
         }
 
@@ -169,15 +185,16 @@ class WhatsAppController extends Controller
             return response()->json(['status' => 'ignored', 'reason' => 'no_text_message']);
         }
 
-        // Ignora mensagens enviadas por nós mesmos
-        if ($fromMe) {
-            return response()->json(['status' => 'ignored', 'reason' => 'from_me']);
-        }
-
         // Extrai número limpo (remove @s.whatsapp.net etc.)
         $numeroLimpo = preg_replace('/[^0-9]/', '', explode('@', $numero)[0]);
 
-        Log::info("WhatsApp Bot: Mensagem de {$numeroLimpo}: {$mensagem}");
+        // Ignora mensagens enviadas por nós mesmos para terceiros (clientes/grupos),
+        // mas permite se for mensagem do próprio admin em conversa consigo mesmo
+        if ($fromMe && !$this->ai->isAutorizado($numeroLimpo)) {
+            return response()->json(['status' => 'ignored', 'reason' => 'from_me']);
+        }
+
+        Log::info("WhatsApp Bot: Mensagem recebida de {$numeroLimpo}: {$mensagem} (fromMe: " . ($fromMe ? 'sim' : 'nao') . ")");
 
         // Verifica se o número é autorizado
         if (!$this->ai->isAutorizado($numeroLimpo)) {

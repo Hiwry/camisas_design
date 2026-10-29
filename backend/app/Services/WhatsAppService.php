@@ -117,20 +117,26 @@ class WhatsAppService
 
     public function configurarWebhook(string $url): bool
     {
+        $separator = str_contains($url, '?') ? '&' : '?';
+        $fullUrl   = !empty($this->apiKey) && !str_contains($url, 'apikey=')
+            ? "{$url}{$separator}apikey={$this->apiKey}"
+            : $url;
+
         try {
             $this->requisicao('POST', "/webhook/set/{$this->instance}", [
                 'webhook' => [
-                    'enabled' => true,
-                    'url'     => $url,
+                    'enabled'         => true,
+                    'url'             => $fullUrl,
+                    'headers'         => !empty($this->apiKey) ? ['apikey' => $this->apiKey] : null,
                     'webhookByEvents' => false,
-                    'webhookBase64'    => false,
-                    'events'  => [
+                    'webhookBase64'   => false,
+                    'events'          => [
                         'MESSAGES_UPSERT',
                     ],
                 ]
             ]);
 
-            Log::info("WhatsApp webhook configurado: {$url}");
+            Log::info("WhatsApp webhook configurado: {$fullUrl}");
             return true;
         } catch (\Exception $e) {
             Log::error("Erro ao configurar webhook: " . $e->getMessage());
