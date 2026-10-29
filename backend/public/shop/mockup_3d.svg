@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <radialGradient id="mockupBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1f1418" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#120c10" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#080507" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="roseGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="50%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#9f1239"/>
+    </linearGradient>
+    <linearGradient id="goldAcc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#d4a020"/>
+    </linearGradient>
+    <filter id="studioGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#mockupBg)"/>
+
+  <!-- Studio Lighting Softbox Cones -->
+  <g opacity="0.12">
+    <polygon points="120,40 180,40 350,220 250,220" fill="url(#roseGlow)"/>
+    <polygon points="680,40 620,40 450,220 550,220" fill="url(#goldAcc)"/>
+  </g>
+
+  <!-- 3D Studio Pedestal / Stage -->
+  <ellipse cx="400" cy="300" rx="140" ry="40" fill="#181316" stroke="url(#roseGlow)" stroke-width="2" filter="url(#studioGlow)"/>
+  <ellipse cx="400" cy="300" rx="110" ry="30" fill="none" stroke="#d4a020" stroke-width="1" stroke-dasharray="8 6"/>
+
+  <!-- 3D Floating T-Shirt Silhouette / Mockup Form -->
+  <g transform="translate(400, 190)" filter="url(#studioGlow)">
+    <!-- T-Shirt Body -->
+    <path d="M -55 -75 
+             L -30 -85 C -15 -75 15 -75 30 -85 
+             L 55 -75 
+             L 80 -45 L 60 -30 L 45 -40 
+             L 45 65 C 15 70 -15 70 -45 65 
+             L -45 -40 L -60 -30 L -80 -45 Z" 
+          fill="#1c1218" stroke="url(#roseGlow)" stroke-width="2.5"/>
+    
+    <!-- Realistic Lighting Highlights / Folds -->
+    <path d="M -15 -75 C -10 -40 -15 20 -25 65" stroke="rgba(251, 113, 133, 0.4)" stroke-width="2" fill="none"/>
+    <path d="M 15 -75 C 20 -40 15 20 25 65" stroke="rgba(253, 224, 71, 0.3)" stroke-width="2" fill="none"/>
+
+    <!-- 3D Cube / Wireframe Orbit -->
+    <g transform="scale(0.85)" opacity="0.6">
+      <path d="M 0 -110 L 95 -60 L 95 60 L 0 110 L -95 60 L -95 -60 Z" fill="none" stroke="url(#goldAcc)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <line x1="0" y1="-110" x2="0" y2="110" stroke="url(#goldAcc)" stroke-width="1" stroke-dasharray="4 4"/>
+    </g>
+  </g>
+
+  <!-- Camera Lens Focus Reticle -->
+  <g transform="translate(400, 190)" opacity="0.7">
+    <path d="M -90 -60 L -75 -60 L -75 -45" fill="none" stroke="#ffffff" stroke-width="2"/>
+    <path d="M 90 -60 L 75 -60 L 75 -45" fill="none" stroke="#ffffff" stroke-width="2"/>
+    <path d="M -90 60 L -75 60 L -75 45" fill="none" stroke="#ffffff" stroke-width="2"/>
+    <path d="M 90 60 L 75 60 L 75 45" fill="none" stroke="#ffffff" stroke-width="2"/>
+  </g>
+
+  <!-- Label Badge -->
+  <g transform="translate(400, 375)">
+    <rect x="-120" y="-16" width="240" height="32" rx="16" fill="#1f1017" stroke="#e11d48" stroke-width="1.2"/>
+    <text text-anchor="middle" y="5" fill="#fecdd3" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">
+      MOCKUP 3D ULTRA-HD · 4K
+    </text>
+  </g>
+</svg>

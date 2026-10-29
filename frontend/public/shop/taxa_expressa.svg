@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <radialGradient id="speedBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#241a0e" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#140f08" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0a0704" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="amberFire" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="speedWhite" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="speedGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#speedBg)"/>
+
+  <!-- Speed Lines / Motion Blur -->
+  <g opacity="0.35">
+    <line x1="120" y1="170" x2="310" y2="170" stroke="url(#speedWhite)" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="80" y1="210" x2="280" y2="210" stroke="url(#speedWhite)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="150" y1="250" x2="300" y2="250" stroke="url(#speedWhite)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="520" y1="150" x2="680" y2="150" stroke="url(#amberFire)" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+    <line x1="500" y1="210" x2="720" y2="210" stroke="url(#amberFire)" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  </g>
+
+  <!-- Central Speed Chronometer / Stopwatch -->
+  <g transform="translate(400, 200)" filter="url(#speedGlow)">
+    <!-- Top Button / Crown -->
+    <rect x="-8" y="-95" width="16" height="15" rx="3" fill="url(#amberFire)"/>
+    <rect x="-18" y="-105" width="36" height="10" rx="4" fill="#3f3f46"/>
+
+    <!-- Outer Stopwatch Ring -->
+    <circle r="75" fill="#18130b" stroke="url(#amberFire)" stroke-width="3"/>
+    <circle r="64" fill="none" stroke="#27272a" stroke-width="1.5"/>
+
+    <!-- Clock Hour Ticks -->
+    <line x1="0" y1="-64" x2="0" y2="-54" stroke="#fbbf24" stroke-width="2"/>
+    <line x1="64" y1="0" x2="54" y2="0" stroke="#fbbf24" stroke-width="2"/>
+    <line x1="0" y1="64" x2="0" y2="54" stroke="#fbbf24" stroke-width="2"/>
+    <line x1="-64" y1="0" x2="-54" y2="0" stroke="#fbbf24" stroke-width="2"/>
+
+    <!-- Lightning Bolt Cutting Through Chrono -->
+    <path d="M 12 -42 L -18 5 L 4 5 L -8 42 L 26 -8 L 4 -8 Z" 
+          fill="url(#amberFire)" stroke="#ffffff" stroke-width="1.5"/>
+
+    <!-- Center Pivot -->
+    <circle cx="0" cy="0" r="4" fill="#ffffff"/>
+  </g>
+
+  <!-- Label Badge -->
+  <g transform="translate(400, 375)">
+    <rect x="-125" y="-16" width="250" height="32" rx="16" fill="#1c1306" stroke="#f59e0b" stroke-width="1.2"/>
+    <text text-anchor="middle" y="5" fill="#fef3c7" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">
+      FAST-TRACK 6H · FILA PRIORITÁRIA
+    </text>
+  </g>
+</svg>

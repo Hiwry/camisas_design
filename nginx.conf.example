@@ -1,0 +1,96 @@
+# ==============================================================================
+# Configuração de Produção Nginx - Camiseta Design
+# Arquitetura Unificada: Frontend SPA React + Backend Laravel API + Evolution API
+# ==============================================================================
+
+# Redirecionamento HTTP -> HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name seudominio.com.br www.seudominio.com.br;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name seudominio.com.br www.seudominio.com.br;
+
+    # Certificados SSL (Let's Encrypt / Certbot)
+    ssl_certificate /etc/letsencrypt/live/seudominio.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/seudominio.com.br/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Limite de upload (vital para arquivos de artes e previews até 20MB)
+    client_max_body_size 35M;
+
+    # Compressão Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript application/json image/svg+xml;
+
+    # 1. FRONTEND SPA (React / Vite)
+    root /var/www/camisas_design/frontend/dist;
+    index index.html;
+
+    # 2. BACKEND API (Laravel)
+    location ^~ /api {
+        root /var/www/camisas_design/backend/public;
+        try_files $uri $uri/ /index.php?$query_string;
+
+        location ~ \.php$ {
+            include fastcgi_params;
+            fastcgi_pass unix:/var/run/php/php8.2-fpm.sock; # Ajuste para sua versão do PHP se necessário
+            fastcgi_param SCRIPT_FILENAME /var/www/camisas_design/backend/public/index.php;
+            fastcgi_read_timeout 120;
+        }
+    }
+
+    # 3. STORAGE PÚBLICO DO LARAVEL (Artes, Previews, Portfólio)
+    location ^~ /storage {
+        alias /var/www/camisas_design/backend/storage/app/public;
+        try_files $uri $uri/ =404;
+        access_log off;
+        log_not_found off;
+        expires 30d;
+    }
+
+    # 4. COOKIE CSRF SANCTUM
+    location ^~ /sanctum {
+        root /var/www/camisas_design/backend/public;
+        try_files $uri $uri/ /index.php?$query_string;
+
+        location ~ \.php$ {
+            include fastcgi_params;
+            fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME /var/www/camisas_design/backend/public/index.php;
+        }
+    }
+
+    # 5. EVOLUTION API (WhatsApp Webhook / Status Proxy)
+    location ^~ /evolution/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 6. ROTEAMENTO SPA DO FRONTEND
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Bloqueio de arquivos ocultos e sensíveis (.env, .git, etc.)
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
