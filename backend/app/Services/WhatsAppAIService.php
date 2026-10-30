@@ -935,24 +935,51 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             $obsLower = mb_strtolower(trim($mensagem));
             $obs = ($obsLower === 'nenhuma' || $obsLower === 'nao' || $obsLower === 'não') ? null : $mensagem;
 
-            $confeccaoId = $estado['confeccao_id'] ?? null;
-            if (!$confeccaoId) {
-                // Tenta associar à primeira confecção ativa ou cria stub
-                $primeira = Confeccao::where('ativo', true)->first();
-                $confeccaoId = $primeira?->id ?? 1;
+            // Busca ou associa à confecção correta
+            $confeccao = null;
+            if (!empty($estado['confeccao_id'])) {
+                $confeccao = Confeccao::find($estado['confeccao_id']);
+            }
+            if (!$confeccao && !empty($remetente['confeccao'])) {
+                $confeccao = $remetente['confeccao'];
+            }
+            if (!$confeccao) {
+                $confeccao = Confeccao::where('ativo', true)->first() ?? Confeccao::first();
+            }
+            if (!$confeccao) {
+                $confeccao = Confeccao::create([
+                    'nome'          => 'Confecção Padrão',
+                    'telefone'      => $numero,
+                    'whatsapp'      => $numero,
+                    'plano'         => 'basico',
+                    'limite_mensal' => 10,
+                    'ativo'         => true,
+                ]);
             }
 
-            $pedido = Pedido::create([
-                'confeccao_id'     => $confeccaoId,
-                'titulo'           => $estado['titulo'],
-                'tipo_impressao'   => $estado['tipo_impressao'],
-                'status'           => 'aguardando_briefing',
-                'observacoes'      => $obs,
-                'whatsapp_cliente' => $numero,
-                'nome_cliente'     => $remetente['nome'] ?? 'Cliente WhatsApp',
-            ]);
+            try {
+                $pedido = Pedido::create([
+                    'confeccao_id'     => $confeccao->id,
+                    'titulo'           => $estado['titulo'] ?? 'Pedido via WhatsApp',
+                    'tipo_impressao'   => $estado['tipo_impressao'] ?? 'sublimacao',
+                    'status'           => 'aguardando_briefing',
+                    'observacoes'      => $obs,
+                    'cliente_whatsapp' => $numero,
+                    'cliente_nome'     => $remetente['nome'] ?? 'Cliente WhatsApp',
+                ]);
 
-            Cache::forget($stateKey);
+                // Incrementa contador da confecção
+                $confeccao->incrementarArteUsada();
+
+                Cache::forget($stateKey);
+            } catch (\Throwable $e) {
+                Log::error("WhatsApp Bot: Erro ao criar pedido no banco: " . $e->getMessage(), [
+                    'estado' => $estado,
+                    'numero' => $numero,
+                ]);
+                Cache::forget($stateKey);
+                throw $e;
+            }
 
             $tipoNome = match ($pedido->tipo_impressao) {
                 'sublimacao' => 'Sublimação Total',

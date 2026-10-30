@@ -92,65 +92,65 @@ class Pedido extends Model
         return $this->hasOne(Aprovacao::class)->latestOfMany();
     }
 
-    // Acessores e Mutatores para compatibilidade de nomenclatura (colunas reais no banco: whatsapp_cliente, email_cliente, nome_cliente)
+    // Acessores e Mutatores para compatibilidade de nomenclatura (colunas reais no banco: cliente_nome, cliente_email, cliente_whatsapp)
     public function getWhatsappClienteAttribute(): ?string
     {
-        return $this->attributes['whatsapp_cliente'] ?? null;
+        return $this->attributes['cliente_whatsapp'] ?? $this->attributes['whatsapp_cliente'] ?? null;
     }
 
     public function setWhatsappClienteAttribute(?string $value): void
     {
-        $this->attributes['whatsapp_cliente'] = $value;
+        $this->attributes['cliente_whatsapp'] = $value;
     }
 
     public function getClienteWhatsappAttribute(): ?string
     {
-        return $this->attributes['whatsapp_cliente'] ?? null;
+        return $this->attributes['cliente_whatsapp'] ?? $this->attributes['whatsapp_cliente'] ?? null;
     }
 
     public function setClienteWhatsappAttribute(?string $value): void
     {
-        $this->attributes['whatsapp_cliente'] = $value;
+        $this->attributes['cliente_whatsapp'] = $value;
     }
 
     public function getEmailClienteAttribute(): ?string
     {
-        return $this->attributes['email_cliente'] ?? null;
+        return $this->attributes['cliente_email'] ?? $this->attributes['email_cliente'] ?? null;
     }
 
     public function setEmailClienteAttribute(?string $value): void
     {
-        $this->attributes['email_cliente'] = $value;
+        $this->attributes['cliente_email'] = $value;
     }
 
     public function getClienteEmailAttribute(): ?string
     {
-        return $this->attributes['email_cliente'] ?? null;
+        return $this->attributes['cliente_email'] ?? $this->attributes['email_cliente'] ?? null;
     }
 
     public function setClienteEmailAttribute(?string $value): void
     {
-        $this->attributes['email_cliente'] = $value;
+        $this->attributes['cliente_email'] = $value;
     }
 
     public function getNomeClienteAttribute(): ?string
     {
-        return $this->attributes['nome_cliente'] ?? null;
+        return $this->attributes['cliente_nome'] ?? $this->attributes['nome_cliente'] ?? null;
     }
 
     public function setNomeClienteAttribute(?string $value): void
     {
-        $this->attributes['nome_cliente'] = $value;
+        $this->attributes['cliente_nome'] = $value;
     }
 
     public function getClienteNomeAttribute(): ?string
     {
-        return $this->attributes['nome_cliente'] ?? null;
+        return $this->attributes['cliente_nome'] ?? $this->attributes['nome_cliente'] ?? null;
     }
 
     public function setClienteNomeAttribute(?string $value): void
     {
-        $this->attributes['nome_cliente'] = $value;
+        $this->attributes['cliente_nome'] = $value;
     }
 
     // Helpers
