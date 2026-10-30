@@ -5,6 +5,9 @@
 
     RewriteEngine On
 
+    # Desativa redirecionamento automático de barra para diretórios físicos
+    DirectorySlash Off
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -13,13 +16,15 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
-    # Redirect Trailing Slashes If Not A Folder...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} (.+)/$
-    RewriteRule ^ %1 [L,R=301]
-
-    # Send Requests To Front Controller...
-    RewriteCond %{REQUEST_FILENAME} !-d
+    # 1. Rotas da API e Storage vão sempre para o Laravel (index.php)
+    RewriteCond %{REQUEST_URI} ^/(api|storage)(/.*)?$ [NC]
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+
+    # 2. Arquivos físicos existentes (.js, .css, imagens em /portfolio/*.jpg, /shop/*.jpg) são servidos diretamente
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # 3. Qualquer outra rota (/portfolio, /shop, /dashboard, /whatsapp, /pedidos etc.) serve a SPA index.html diretamente
+    RewriteRule ^ index.html [L]
 </IfModule>
