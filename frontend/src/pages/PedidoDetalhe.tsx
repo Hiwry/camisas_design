@@ -518,7 +518,9 @@ export default function PedidoDetalhe() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {pedido.referencias.map((ref: { url: string; nome: string; tipo: string; tamanho: number }, i: number) => {
-              const ehImagem = ['png','jpg','jpeg','gif','webp'].includes(ref.tipo?.toLowerCase() ?? '')
+              const nomeOuUrl = (ref.nome || ref.url || '').toLowerCase()
+              const ehImagem = ['png','jpg','jpeg','gif','webp'].includes(ref.tipo?.toLowerCase() ?? '') ||
+                /\.(png|jpe?g|gif|webp)($|\?)/i.test(nomeOuUrl)
               return (
                 <a
                   key={i}
@@ -529,23 +531,33 @@ export default function PedidoDetalhe() {
                   style={{ background: '#161616', borderColor: '#2a2a2a' }}
                 >
                   {ehImagem ? (
-                    <div className="aspect-square overflow-hidden" style={{ background: '#111' }}>
+                    <div className="aspect-square overflow-hidden flex items-center justify-center" style={{ background: '#111' }}>
                       <img
                         src={ref.url}
                         alt={ref.nome}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        onError={(e) => {
+                          const img = e.currentTarget
+                          img.style.display = 'none'
+                          const parent = img.parentElement
+                          if (parent && !parent.querySelector('.fallback-placeholder')) {
+                            const fallback = document.createElement('div')
+                            fallback.className = 'fallback-placeholder w-full h-full flex flex-col items-center justify-center p-2 text-zinc-500 text-xs text-center'
+                            fallback.innerHTML = '<span class="text-lg mb-1">🖼️</span><span>Visualizar</span>'
+                            parent.appendChild(fallback)
+                          }
+                        }}
                       />
                     </div>
                   ) : (
                     <div className="aspect-square flex flex-col items-center justify-center gap-2" style={{ background: 'rgba(212,160,32,0.05)' }}>
                       <FileText className="w-8 h-8 text-zinc-600" />
-                      <span className="text-xs text-zinc-600 uppercase font-semibold">{ref.tipo}</span>
+                      <span className="text-xs text-zinc-600 uppercase font-semibold">{ref.tipo || 'DOC'}</span>
                     </div>
                   )}
                   <div className="p-2 border-t" style={{ borderColor: '#2a2a2a' }}>
                     <p className="text-[10px] text-zinc-400 truncate" title={ref.nome}>{ref.nome}</p>
-                    <p className="text-[10px] text-zinc-700">{(ref.tamanho / 1024).toFixed(0)} KB</p>
+                    <p className="text-[10px] text-zinc-700">{(ref.tamanho ? ref.tamanho / 1024 : 0).toFixed(0)} KB</p>
                   </div>
                 </a>
               )
