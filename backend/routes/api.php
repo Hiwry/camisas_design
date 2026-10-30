@@ -78,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pedidos/{pedido}',      [PedidoController::class, 'show']);
     Route::put('/pedidos/{pedido}',      [PedidoController::class, 'update']);
     Route::delete('/pedidos/{pedido}',   [PedidoController::class, 'destroy']);
+    Route::post('/pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar']);
 
     // Mover status no kanban (somente admin)
     Route::patch('/pedidos/{pedido}/status', [PedidoController::class, 'moverStatus'])

@@ -168,6 +168,23 @@ class PedidoController extends Controller
         ]);
     }
 
+    public function cancelar(Request $request, Pedido $pedido)
+    {
+        $this->authorizePedido($pedido);
+
+        if ($pedido->status === 'cancelado') {
+            return response()->json(['message' => 'Pedido já está cancelado.'], 422);
+        }
+
+        if ($pedido->status === 'finalizado') {
+            return response()->json(['message' => 'Pedidos finalizados não podem ser cancelados.'], 422);
+        }
+
+        $pedido->update(['status' => 'cancelado']);
+
+        return response()->json($pedido->fresh(['confeccao', 'arteAtiva', 'ultimaAprovacao']));
+    }
+
     public function destroy(Pedido $pedido)
     {
         $this->authorizePedido($pedido);
