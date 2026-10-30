@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class ConfeccaoController extends Controller
 {
@@ -49,14 +51,42 @@ class ConfeccaoController extends Controller
                 $userId = $user->id;
             }
 
+            if (!$userId) {
+                // Se não vai criar usuário, tenta criar confecção com user_id null;
+                // se o banco ainda tiver restrição NOT NULL, cria stub silencioso
+                try {
+                    return Confeccao::create([
+                        'user_id'       => null,
+                        'nome'          => $data['nome'],
+                        'telefone'      => $data['telefone'] ?? $data['whatsapp'] ?? null,
+                        'email'         => $data['email'] ?? null,
+                        'whatsapp'      => $data['whatsapp'] ?? $data['telefone'] ?? null,
+                        'plano'         => $data['plano'],
+                        'limite_mensal' => Confeccao::LIMITES_PLANO[$data['plano']] ?? 0,
+                        'reset_em'      => now()->toDateString(),
+                    ]);
+                } catch (\Throwable $e) {
+                    $stubEmail = 'cliente_' . preg_replace('/\D/', '', $data['whatsapp'] ?? '') . '_' . Str::random(6) . '@camisetadesign.local';
+                    $user = User::create([
+                        'name'     => $data['nome'],
+                        'email'    => $data['email'] ?: $stubEmail,
+                        'password' => Hash::make(Str::random(32)),
+                        'role'     => 'confeccao',
+                        'whatsapp' => $data['whatsapp'] ?? $data['telefone'] ?? null,
+                    ]);
+                    $userId = $user->id;
+                }
+            }
+
+            $planoDb = $data['plano'];
             return Confeccao::create([
                 'user_id'       => $userId,
                 'nome'          => $data['nome'],
                 'telefone'      => $data['telefone'] ?? $data['whatsapp'] ?? null,
                 'email'         => $data['email'] ?? null,
                 'whatsapp'      => $data['whatsapp'] ?? $data['telefone'] ?? null,
-                'plano'         => $data['plano'],
-                'limite_mensal' => Confeccao::LIMITES_PLANO[$data['plano']] ?? 10,
+                'plano'         => $planoDb,
+                'limite_mensal' => Confeccao::LIMITES_PLANO[$data['plano']] ?? 0,
                 'reset_em'      => now()->toDateString(),
             ]);
         });

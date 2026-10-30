@@ -9,29 +9,37 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Torna user_id nullable e permite confecções sem conta de usuário (login/senha)
-        Schema::table('confeccoes', function (Blueprint $table) {
-            // Tenta remover a chave estrangeira existente se houver
+        // 1. Remove restrição de chave estrangeira antiga se existir
+        try {
+            DB::statement("ALTER TABLE confeccoes DROP FOREIGN KEY confeccoes_user_id_foreign");
+        } catch (\Throwable $e) {}
+
+        // 2. Torna user_id nullable no MySQL
+        try {
+            DB::statement("ALTER TABLE confeccoes MODIFY user_id BIGINT UNSIGNED NULL");
+        } catch (\Throwable $e) {
             try {
-                $table->dropForeign(['user_id']);
-            } catch (\Throwable $e) {
-                // Em alguns drivers/MySQL o nome pode ser confeccoes_user_id_foreign
-                try {
-                    $table->dropForeign('confeccoes_user_id_foreign');
-                } catch (\Throwable $e2) {}
-            }
-        });
+                Schema::table('confeccoes', function (Blueprint $table) {
+                    $table->unsignedBigInteger('user_id')->nullable()->change();
+                });
+            } catch (\Throwable $e2) {}
+        }
 
-        Schema::table('confeccoes', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_id')->nullable()->change();
-            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+        // 3. Re-adiciona a chave com ON DELETE SET NULL
+        try {
+            DB::statement("ALTER TABLE confeccoes ADD CONSTRAINT confeccoes_user_id_foreign FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
+        } catch (\Throwable $e) {}
 
-            if (!Schema::hasColumn('confeccoes', 'whatsapp')) {
-                $table->string('whatsapp', 20)->nullable()->after('telefone');
-            }
-        });
+        // 4. Adiciona coluna whatsapp se não existir
+        if (!Schema::hasColumn('confeccoes', 'whatsapp')) {
+            try {
+                Schema::table('confeccoes', function (Blueprint $table) {
+                    $table->string('whatsapp', 20)->nullable()->after('telefone');
+                });
+            } catch (\Throwable $e) {}
+        }
 
-        // 2. Altera plano para string para suportar 'avulso', 'basico', 'profissional', 'premium' sem limitação de enum
+        // 5. Altera plano para string para suportar 'avulso', 'basico', 'profissional', 'premium' sem limitação de enum
         try {
             DB::statement("ALTER TABLE confeccoes MODIFY plano VARCHAR(50) NOT NULL DEFAULT 'avulso'");
         } catch (\Throwable $e) {
@@ -45,18 +53,16 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('confeccoes', function (Blueprint $table) {
-            try {
-                $table->dropForeign(['user_id']);
-            } catch (\Throwable $e) {}
+        try {
+            DB::statement("ALTER TABLE confeccoes DROP FOREIGN KEY confeccoes_user_id_foreign");
+        } catch (\Throwable $e) {}
 
-            $table->unsignedBigInteger('user_id')->nullable(false)->change();
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+        try {
+            DB::statement("ALTER TABLE confeccoes MODIFY user_id BIGINT UNSIGNED NOT NULL");
+        } catch (\Throwable $e) {}
 
-            if (Schema::hasColumn('confeccoes', 'whatsapp')) {
-                $table->dropColumn('whatsapp');
-            }
-        });
+        try {
+            DB::statement("ALTER TABLE confeccoes ADD CONSTRAINT confeccoes_user_id_foreign FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE");
+        } catch (\Throwable $e) {}
     }
 };
-

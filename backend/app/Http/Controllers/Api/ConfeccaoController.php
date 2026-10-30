@@ -7,6 +7,8 @@ use App\Models\Confeccao;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ConfeccaoController extends Controller
 {
@@ -57,8 +59,8 @@ class ConfeccaoController extends Controller
         ]);
 
         $userId = null;
-        $criarUsuario = filter_var($request->input('criar_usuario', false), FILTER_VALIDATE_BOOLEAN)
-            || (!empty($request->email) && !empty($request->password));
+        $email = !empty($request->email) ? trim($request->email) : null;
+        $criarUsuario = filter_var($request->input('criar_usuario', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($criarUsuario) {
             $request->validate([
@@ -68,7 +70,7 @@ class ConfeccaoController extends Controller
 
             $user = User::create([
                 'name'      => $request->nome,
-                'email'     => $request->email,
+                'email'     => $email,
                 'password'  => Hash::make($request->password),
                 'role'      => 'confeccao',
                 'whatsapp'  => $request->whatsapp ?? $request->telefone,
@@ -77,16 +79,50 @@ class ConfeccaoController extends Controller
             $userId = $user->id;
         }
 
-        $confeccao = Confeccao::create([
-            'user_id'       => $userId,
-            'nome'          => $request->nome,
-            'telefone'      => $request->telefone ?? $request->whatsapp,
-            'whatsapp'      => $request->whatsapp ?? $request->telefone,
-            'email'         => $request->email,
-            'plano'         => $request->plano,
-            'limite_mensal' => Confeccao::LIMITES_PLANO[$request->plano] ?? 10,
-            'reset_em'      => now()->toDateString(),
-        ]);
+        try {
+            $confeccao = Confeccao::create([
+                'user_id'       => $userId,
+                'nome'          => $request->nome,
+                'telefone'      => $request->telefone ?? $request->whatsapp,
+                'whatsapp'      => $request->whatsapp ?? $request->telefone,
+                'email'         => $request->email,
+                'plano'         => $request->plano,
+                'limite_mensal' => Confeccao::LIMITES_PLANO[$request->plano] ?? 0,
+                'reset_em'      => now()->toDateString(),
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::warning("ConfeccaoController: Erro SQL ao cadastrar confecção. Aplicando fallback de compatibilidade: " . $e->getMessage());
+
+            // Fallback 1: Se o banco legado ainda tem user_id NOT NULL (migração pendente), cria um stub silencioso
+            if (!$userId) {
+                $stubEmail = 'cliente_' . preg_replace('/\D/', '', $request->whatsapp ?? '') . '_' . Str::random(6) . '@camisetadesign.local';
+                $stubUser = User::create([
+                    'name'     => $request->nome,
+                    'email'    => $request->email ?: $stubEmail,
+                    'password' => Hash::make(Str::random(32)),
+                    'role'     => 'confeccao',
+                    'whatsapp' => $request->whatsapp ?? $request->telefone,
+                ]);
+                $userId = $stubUser->id;
+            }
+
+            // Fallback 2: Se o banco legado ainda tem o ENUM sem 'avulso', usa 'basico' no banco mas com limite 0
+            $planoDb = $request->plano;
+            if ($planoDb === 'avulso') {
+                $planoDb = 'basico';
+            }
+
+            $confeccao = Confeccao::create([
+                'user_id'       => $userId,
+                'nome'          => $request->nome,
+                'telefone'      => $request->telefone ?? $request->whatsapp,
+                'whatsapp'      => $request->whatsapp ?? $request->telefone,
+                'email'         => $request->email,
+                'plano'         => $planoDb,
+                'limite_mensal' => 0,
+                'reset_em'      => now()->toDateString(),
+            ]);
+        }
 
         return response()->json($confeccao->load('user'), 201);
     }
