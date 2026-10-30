@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { aprovacaoService } from '@/services/api'
 import toast from 'react-hot-toast'
 import { format, parseISO } from 'date-fns'
-import { CheckCircle2, RefreshCw, FileText, ChevronDown, Shirt, ExternalLink, Download } from 'lucide-react'
+import { CheckCircle2, RefreshCw, FileText, ChevronDown, Shirt, ExternalLink, Download, Star, Image } from 'lucide-react'
 import clsx from 'clsx'
 
 type Etapa = 'visualizar' | 'revisao' | 'sucesso_aprovado' | 'sucesso_revisao'
@@ -15,10 +15,11 @@ const TIPO_LABEL: Record<string, string> = {
 
 export default function AprovacaoPublica() {
   const { token } = useParams<{ token: string }>()
-  const [etapa, setEtapa]               = useState<Etapa>('visualizar')
-  const [comentario, setComentario]     = useState('')
+  const [etapa, setEtapa]                 = useState<Etapa>('visualizar')
+  const [comentario, setComentario]       = useState('')
   const [nomeAprovador, setNomeAprovador] = useState('')
-  const [histOpen, setHistOpen]         = useState(false)
+  const [histOpen, setHistOpen]           = useState(false)
+  const [activePreviewIdx, setActivePreviewIdx] = useState(0)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['aprovacao', token],
@@ -133,31 +134,38 @@ export default function AprovacaoPublica() {
         {/* ── Visualização da arte ── */}
         {arte_ativa ? (() => {
           const tipoArte   = arte_ativa.arquivo_tipo?.toLowerCase() ?? ''
-          const previewSrc = arte_ativa.preview_url
-            ?? (['png','jpg','jpeg','webp'].includes(tipoArte) ? arte_ativa.arquivo_url : null)
-          const versaoAtual = historico_artes?.find((a: { ativa: boolean }) => a.ativa)?.versao ?? 1
+          const arquivos   = Array.isArray(arte_ativa.arquivos) ? arte_ativa.arquivos : []
+          const previews   = arquivos.filter((a: any) => a.eh_preview)
+          const fontes     = arquivos.filter((a: any) => !a.eh_preview)
+
+          const listaPreviews = previews.length > 0
+            ? previews
+            : (arte_ativa.preview_url ? [{ url: arte_ativa.preview_url, nome: arte_ativa.preview_nome }] : (['png','jpg','jpeg','webp'].includes(tipoArte) ? [{ url: arte_ativa.arquivo_url, nome: arte_ativa.arquivo_nome }] : []))
+
+          const curPreview = listaPreviews[activePreviewIdx] ?? listaPreviews[0]
+          const previewSrc = curPreview?.url ?? null
+          const versaoAtual = historico_artes?.find((a: { ativa: boolean }) => a.ativa)?.versao ?? arte_ativa.versao ?? 1
 
           return (
-            <div className="card overflow-hidden">
+            <div className={clsx("card overflow-hidden", arte_ativa.is_final && "border-amber-500/50 shadow-lg shadow-amber-500/10")}>
               <div
-                className="flex items-center justify-between px-5 py-3 border-b"
+                className="flex flex-wrap items-center justify-between px-5 py-3 border-b gap-3"
                 style={{ background: '#161616', borderColor: '#2a2a2a' }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <FileText className="w-4 h-4 text-zinc-500" />
-                  <span className="text-sm font-medium text-zinc-300">Versão {versaoAtual}</span>
+                  <span className="text-sm font-semibold text-zinc-200">Versão {versaoAtual}</span>
+                  {arte_ativa.is_final && (
+                    <span
+                      className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow"
+                      style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#000' }}
+                    >
+                      <Star className="w-3 h-3 fill-black" />
+                      Versão Final Aprovada
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {arte_ativa.arquivo_url && (
-                    <a
-                      href={arte_ativa.arquivo_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-80 text-zinc-400 hover:text-zinc-200"
-                    >
-                      <Download className="w-3 h-3" /> Baixar arquivo
-                    </a>
-                  )}
                   {previewSrc && (
                     <a
                       href={previewSrc}
@@ -172,12 +180,18 @@ export default function AprovacaoPublica() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-center min-h-[480px]" style={{ background: '#080808' }}>
+              {arte_ativa.notas && (
+                <div className="px-5 py-2 text-xs text-zinc-400 border-b border-zinc-800 bg-zinc-900/40 italic">
+                  💬 Mensagem do Designer: "{arte_ativa.notas}"
+                </div>
+              )}
+
+              <div className="flex items-center justify-center min-h-[480px] p-2" style={{ background: '#080808' }}>
                 {previewSrc ? (
                   <img
                     src={previewSrc}
                     alt="Arte para aprovação"
-                    className="max-h-[560px] max-w-full object-contain"
+                    className="max-h-[560px] max-w-full object-contain rounded-lg"
                   />
                 ) : arte_ativa.arquivo_tipo === 'pdf' ? (
                   <iframe
@@ -204,28 +218,63 @@ export default function AprovacaoPublica() {
                 )}
               </div>
 
-              {/* Banner de download do arquivo fonte */}
-              {arte_ativa.arquivo_url && arte_ativa.preview_url && (
+              {/* Se houver múltiplas imagens de visualização (ex: frente e costas) */}
+              {listaPreviews.length > 1 && (
+                <div className="flex items-center gap-2 px-5 py-3 border-t overflow-x-auto" style={{ background: '#121212', borderColor: '#222' }}>
+                  <span className="text-xs text-zinc-500 mr-1 flex items-center gap-1">
+                    <Image className="w-3.5 h-3.5" /> Ângulos:
+                  </span>
+                  {listaPreviews.map((p: any, idx: number) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActivePreviewIdx(idx)}
+                      className={clsx(
+                        "rounded-lg overflow-hidden border transition-all flex-shrink-0",
+                        activePreviewIdx === idx ? "border-amber-400 ring-2 ring-amber-400/30 scale-105" : "border-zinc-800 opacity-60 hover:opacity-100"
+                      )}
+                      style={{ width: '48px', height: '48px', background: '#000' }}
+                    >
+                      <img src={p.url} alt={p.nome} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Banner de download dos arquivos fonte/produção */}
+              {(fontes.length > 0 || (arte_ativa.arquivo_url && arte_ativa.preview_url)) && (
                 <div
-                  className="flex items-center justify-between px-5 py-3 border-t"
+                  className="px-5 py-3 border-t space-y-2"
                   style={{ background: '#161616', borderColor: '#2a2a2a' }}
                 >
-                  <div className="flex items-center gap-2 text-sm text-zinc-500">
-                    <FileText className="w-4 h-4" />
-                    <span>Arquivo fonte disponível</span>
-                    {arte_ativa.arquivo_nome && (
-                      <span className="text-zinc-700">— {arte_ativa.arquivo_nome}</span>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    Arquivos de Produção Disponíveis
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {fontes.length > 0 ? (
+                      fontes.map((f: any, fIdx: number) => (
+                        <a
+                          key={fIdx}
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+                          style={{ color: '#d4a020', borderColor: 'rgba(212,160,32,0.25)', background: 'rgba(212,160,32,0.05)' }}
+                        >
+                          <Download className="w-3.5 h-3.5" /> Baixar {f.nome}
+                        </a>
+                      ))
+                    ) : (
+                      <a
+                        href={arte_ativa.arquivo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+                        style={{ color: '#d4a020', borderColor: 'rgba(212,160,32,0.25)', background: 'rgba(212,160,32,0.05)' }}
+                      >
+                        <Download className="w-3.5 h-3.5" /> Baixar arquivo fonte ({arte_ativa.arquivo_nome || 'Arquivo'})
+                      </a>
                     )}
                   </div>
-                  <a
-                    href={arte_ativa.arquivo_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
-                    style={{ color: '#d4a020', borderColor: 'rgba(212,160,32,0.25)', background: 'rgba(212,160,32,0.05)' }}
-                  >
-                    <Download className="w-3.5 h-3.5" /> Baixar
-                  </a>
                 </div>
               )}
             </div>

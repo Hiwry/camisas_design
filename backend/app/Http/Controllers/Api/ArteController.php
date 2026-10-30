@@ -21,54 +21,150 @@ class ArteController extends Controller
         $this->authorizePedido($pedido);
 
         $request->validate([
-            'arquivo'  => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:20480',
-            'preview'  => 'nullable|file|mimes:jpg,jpeg,png,webp|max:10240',
+            'arquivo'    => 'nullable|file|max:51200',
+            'preview'    => 'nullable|file|max:20480',
+            'arquivos'   => 'nullable|array',
+            'arquivos.*' => 'file|max:51200',
+            'previews'   => 'nullable|array',
+            'previews.*' => 'file|max:20480',
+            'notas'      => 'nullable|string',
+            'is_final'   => 'nullable',
         ]);
 
-        // Rejeita se nenhum arquivo foi enviado
-        if (!$request->hasFile('arquivo') && !$request->hasFile('preview')) {
-            return response()->json(['message' => 'Envie ao menos um arquivo ou preview.'], 422);
+        $hasAnyFile = $request->hasFile('arquivo')
+            || $request->hasFile('preview')
+            || $request->hasFile('arquivos')
+            || $request->hasFile('previews');
+
+        if (!$hasAnyFile) {
+            return response()->json(['message' => 'Envie ao menos um arquivo ou imagem de visualização.'], 422);
         }
 
         $versao = Arte::proximaVersao($pedido->id);
-        $data = ['pedido_id' => $pedido->id, 'versao' => $versao];
         $disk = config('filesystems.default', 'public');
+        $arquivosLista = [];
+        $primeiroPreviewUrl = null;
+        $primeiroPreviewNome = null;
+        $primeiroFonteUrl = null;
+        $primeiroFonteNome = null;
+        $primeiroFonteTipo = 'imagem';
+        $primeiroFonteTamanho = null;
 
-        // Upload do arquivo fonte (PDF, etc.)
-        if ($request->hasFile('arquivo')) {
-            $file = $request->file('arquivo');
-            $extensao = $file->extension();
-            $nomeSeguro = $pedido->id . '_v' . $versao . '_' . time() . '.' . $extensao;
-            $path = $file->storeAs("artes/{$pedido->id}", $nomeSeguro, $disk);
-            $data['arquivo_url']    = Storage::disk($disk)->url($path);
-            $data['arquivo_nome']   = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.' . $extensao;
-            $data['arquivo_tipo']   = $extensao === 'pdf' ? 'pdf' : 'imagem';
-            $data['arquivo_tamanho']= $file->getSize();
+        $processarArquivo = function ($file, $isExplicitPreview = false) use (&$arquivosLista, &$primeiroPreviewUrl, &$primeiroPreviewNome, &$primeiroFonteUrl, &$primeiroFonteNome, &$primeiroFonteTipo, &$primeiroFonteTamanho, $pedido, $versao, $disk) {
+            $ext = strtolower($file->getClientOriginalExtension());
+            $origName = $file->getClientOriginalName();
+            $size = $file->getSize();
+            $ehImagem = in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg']);
+            $ehPreview = $isExplicitPreview || $ehImagem;
+
+            $folder = $ehPreview ? "previews/{$pedido->id}" : "artes/{$pedido->id}";
+            $safeName = $pedido->id . '_v' . $versao . '_' . uniqid() . '.' . $ext;
+            $path = $file->storeAs($folder, $safeName, $disk);
+            $url = Storage::disk($disk)->url($path);
+
+            $item = [
+                'url'        => $url,
+                'nome'       => $origName,
+                'tipo'       => $ext === 'pdf' ? 'pdf' : ($ehImagem ? 'imagem' : 'fonte'),
+                'extensao'   => $ext,
+                'tamanho'    => $size,
+                'eh_preview' => $ehPreview,
+            ];
+            $arquivosLista[] = $item;
+
+            if ($ehPreview && !$primeiroPreviewUrl) {
+                $primeiroPreviewUrl = $url;
+                $primeiroPreviewNome = $origName;
+            }
+
+            if (!$ehPreview && !$primeiroFonteUrl) {
+                $primeiroFonteUrl = $url;
+                $primeiroFonteNome = $origName;
+                $primeiroFonteTipo = $ext === 'pdf' ? 'pdf' : 'fonte';
+                $primeiroFonteTamanho = $size;
+            }
+        };
+
+        // Processa previews múltiplos ou único
+        if ($request->hasFile('previews')) {
+            foreach ($request->file('previews') as $prev) {
+                $processarArquivo($prev, true);
+            }
         }
-
-        // Upload do preview (imagem para visualização)
         if ($request->hasFile('preview')) {
-            $prev = $request->file('preview');
-            $extPrev = $prev->extension();
-            $nomePrev = $pedido->id . '_v' . $versao . '_preview_' . time() . '.' . $extPrev;
-            $path = $prev->storeAs("previews/{$pedido->id}", $nomePrev, $disk);
-            $data['preview_url']  = Storage::disk($disk)->url($path);
-            $data['preview_nome'] = $nomePrev;
+            $processarArquivo($request->file('preview'), true);
         }
 
-        // Desativa versões anteriores e cria a nova
+        // Processa arquivos de produção/fonte múltiplos ou único
+        if ($request->hasFile('arquivos')) {
+            foreach ($request->file('arquivos') as $arq) {
+                $processarArquivo($arq, false);
+            }
+        }
+        if ($request->hasFile('arquivo')) {
+            $processarArquivo($request->file('arquivo'), false);
+        }
+
+        // Se só tem preview e nenhum fonte, ou vice-versa, mantém consistência para o frontend
+        if (!$primeiroPreviewUrl && $primeiroFonteUrl) {
+            $primeiroPreviewUrl = $primeiroFonteUrl;
+            $primeiroPreviewNome = $primeiroFonteNome;
+        }
+
+        $isFinal = filter_var($request->input('is_final', false), FILTER_VALIDATE_BOOLEAN);
+
+        // Se marcada como final, limpa o is_final de versões anteriores
+        if ($isFinal) {
+            Arte::where('pedido_id', $pedido->id)->update(['is_final' => false]);
+        }
+
+        // Desativa versões anteriores e cria a nova como ativa
         Arte::where('pedido_id', $pedido->id)->update(['ativa' => false]);
-        $data['ativa'] = true;
-        $data['enviada_em'] = now();
 
-        $arte = Arte::create($data);
+        $arte = Arte::create([
+            'pedido_id'       => $pedido->id,
+            'versao'          => $versao,
+            'arquivo_url'     => $primeiroFonteUrl ?? $primeiroPreviewUrl,
+            'arquivo_nome'    => $primeiroFonteNome ?? $primeiroPreviewNome,
+            'arquivo_tipo'    => $primeiroFonteTipo,
+            'arquivo_tamanho' => $primeiroFonteTamanho,
+            'preview_url'     => $primeiroPreviewUrl,
+            'preview_nome'    => $primeiroPreviewNome,
+            'arquivos'        => !empty($arquivosLista) ? $arquivosLista : null,
+            'ativa'           => true,
+            'is_final'        => $isFinal,
+            'notas'           => $request->input('notas'),
+            'enviada_em'      => now(),
+        ]);
 
-        // Move pedido para "aguardando aprovação" automaticamente (qualquer status exceto finalizado)
-        if (!in_array($pedido->status, ['aprovado', 'finalizado'])) {
+        if ($isFinal) {
+            $pedido->update(['status' => 'aprovado']);
+        } elseif (!in_array($pedido->status, ['aprovado', 'finalizado'])) {
             $pedido->update(['status' => 'aguardando_aprovacao']);
         }
 
         return response()->json($arte, 201);
+    }
+
+    public function marcarFinal(Arte $arte)
+    {
+        $this->authorizePedido($arte->pedido);
+        $arte->marcarComoFinal();
+        return response()->json($arte->fresh());
+    }
+
+    public function desmarcarFinal(Arte $arte)
+    {
+        $this->authorizePedido($arte->pedido);
+        $arte->desmarcarFinal();
+        return response()->json($arte->fresh());
+    }
+
+    public function tornarAtiva(Arte $arte)
+    {
+        $this->authorizePedido($arte->pedido);
+        $arte->tornarAtiva();
+        return response()->json($arte->fresh());
     }
 
     public function destroy(Arte $arte)

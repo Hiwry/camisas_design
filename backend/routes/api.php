@@ -90,6 +90,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pedidos/{pedido}/artes',   [ArteController::class, 'index']);
     Route::post('/pedidos/{pedido}/artes',  [ArteController::class, 'store']);
     Route::delete('/artes/{arte}',          [ArteController::class, 'destroy']);
+    Route::patch('/artes/{arte}/marcar-final',   [ArteController::class, 'marcarFinal']);
+    Route::patch('/artes/{arte}/desmarcar-final', [ArteController::class, 'desmarcarFinal']);
+    Route::patch('/artes/{arte}/ativar',          [ArteController::class, 'tornarAtiva']);
 
     // Histórico de aprovações (autenticado)
     Route::get('/pedidos/{pedido}/aprovacoes', [AprovacaoController::class, 'historico']);

@@ -67,6 +67,14 @@ export const arteService = {
     api.post(`/pedidos/${pedidoId}/artes`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data),
+  marcarFinal: (arteId: number) =>
+    api.patch(`/artes/${arteId}/marcar-final`).then((r) => r.data),
+  desmarcarFinal: (arteId: number) =>
+    api.patch(`/artes/${arteId}/desmarcar-final`).then((r) => r.data),
+  ativar: (arteId: number) =>
+    api.patch(`/artes/${arteId}/ativar`).then((r) => r.data),
+  excluir: (arteId: number) =>
+    api.delete(`/artes/${arteId}`).then((r) => r.data),
   revisar: (pedidoId: number, arteId: number, arteCompararId?: number) =>
     api.post(`/pedidos/${pedidoId}/revisar-arte`, {
       arte_id: arteId,

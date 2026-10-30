@@ -18,12 +18,17 @@ class Arte extends Model
         'arquivo_tamanho',
         'preview_url',
         'preview_nome',
+        'arquivos',
         'ativa',
+        'is_final',
+        'notas',
         'enviada_em',
     ];
 
     protected $casts = [
         'ativa' => 'boolean',
+        'is_final' => 'boolean',
+        'arquivos' => 'array',
         'enviada_em' => 'datetime',
         'arquivo_tamanho' => 'integer',
         'versao' => 'integer',
@@ -50,6 +55,21 @@ class Arte extends Model
     {
         Arte::where('pedido_id', $this->pedido_id)->update(['ativa' => false]);
         $this->update(['ativa' => true]);
+    }
+
+    // Marca esta versão como a Versão Final da produção
+    public function marcarComoFinal(): void
+    {
+        Arte::where('pedido_id', $this->pedido_id)->update(['is_final' => false]);
+        $this->update(['is_final' => true, 'ativa' => true]);
+        if ($this->pedido && $this->pedido->status !== 'finalizado') {
+            $this->pedido->update(['status' => 'aprovado']);
+        }
+    }
+
+    public function desmarcarFinal(): void
+    {
+        $this->update(['is_final' => false]);
     }
 
     // Próximo número de versão para o pedido
