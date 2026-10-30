@@ -119,7 +119,7 @@ class ConfeccaoController extends Controller
                 'whatsapp'      => $request->whatsapp ?? $request->telefone,
                 'email'         => $request->email,
                 'plano'         => $planoDb,
-                'limite_mensal' => 0,
+                'limite_mensal' => ($request->plano === 'avulso') ? 0 : (Confeccao::LIMITES_PLANO[$request->plano] ?? 10),
                 'reset_em'      => now()->toDateString(),
             ]);
         }

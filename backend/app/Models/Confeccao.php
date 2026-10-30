@@ -65,7 +65,7 @@ class Confeccao extends Model
     // Helpers
     public function artesDisponiveis(): int
     {
-        if ($this->plano === 'avulso') {
+        if ($this->plano === 'avulso' || (int) $this->limite_mensal === 0) {
             return 9999;
         }
         $disponivelPlano = max(0, $this->limite_mensal - $this->artes_usadas_mes);
@@ -74,10 +74,20 @@ class Confeccao extends Model
 
     public function podecriarPedido(): bool
     {
-        if ($this->plano === 'avulso') {
+        if ($this->plano === 'avulso' || (int) $this->limite_mensal === 0 || (int) $this->limite_mensal >= 999) {
             return true;
         }
         return $this->artesDisponiveis() > 0;
+    }
+
+    public function temArteDisponivel(): bool
+    {
+        return $this->podecriarPedido();
+    }
+
+    public function incrementarUso(): void
+    {
+        $this->incrementarArteUsada();
     }
 
     public function incrementarArteUsada(): void

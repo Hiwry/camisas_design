@@ -76,9 +76,15 @@ class PedidoController extends Controller
 
         $confeccao = Confeccao::findOrFail($confeccaoId);
 
-        if (!$confeccao->podecriarPedido()) {
+        $user = auth()->user();
+        $isArtePagaExtra = $request->filled('valor') && (float) $request->valor > 0;
+        $isAvulso = ($confeccao->plano === 'avulso') || ((int) $confeccao->limite_mensal === 0) || ((int) $confeccao->limite_mensal >= 999);
+        $isAdmin = $user && $user->isAdmin();
+        $bypassLimite = $isAdmin || $isArtePagaExtra || $isAvulso;
+
+        if (!$bypassLimite && !$confeccao->podecriarPedido()) {
             return response()->json([
-                'message' => 'Limite mensal de artes atingido para este plano.',
+                'message' => 'Limite mensal de artes atingido para este plano. Adquira artes extras no Shop Avulso.',
                 'disponivel' => 0,
             ], 422);
         }
@@ -108,7 +114,10 @@ class PedidoController extends Controller
         $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
 
         $pedido = Pedido::create($pedidoData);
-        $confeccao->incrementarArteUsada();
+        // Se for arte avulsa paga à parte (com valor > 0), não consome a cota do plano mensal
+        if (!$isArtePagaExtra) {
+            $confeccao->incrementarArteUsada();
+        }
 
         return response()->json($pedido->load('confeccao'), 201);
     }

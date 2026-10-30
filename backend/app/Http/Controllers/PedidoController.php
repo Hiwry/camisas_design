@@ -54,8 +54,13 @@ class PedidoController extends Controller
             $confeccao = $user->confeccao;
         }
 
-        // Verificar limite do plano
-        if (!$confeccao->temArteDisponivel()) {
+        // Verificar limite do plano (Bypass para admin, arte paga extra ou cliente avulso)
+        $isArtePagaExtra = $request->filled('valor') && (float) $request->valor > 0;
+        $isAvulso = ($confeccao->plano === 'avulso') || ((int) $confeccao->limite_mensal === 0) || ((int) $confeccao->limite_mensal >= 999);
+        $isAdmin = $user && $user->isAdmin();
+        $bypassLimite = $isAdmin || $isArtePagaExtra || $isAvulso;
+
+        if (!$bypassLimite && !$confeccao->temArteDisponivel()) {
             return response()->json([
                 'message' => "Limite mensal de {$confeccao->limite_mensal} artes atingido.",
             ], 422);
