@@ -98,6 +98,11 @@ export default function KanbanCard({ card, overlay }: Props) {
           <span className={clsx('badge text-[10px] border', TIPO_STYLE[card.tipo_impressao])}>
             {TIPO_LABEL[card.tipo_impressao]}
           </span>
+          {(card as any).valor > 0 && (
+            <span className="badge text-[10px] border font-bold font-mono bg-emerald-950/70 text-emerald-400 border-emerald-800">
+              R$ {Number((card as any).valor).toFixed(2).replace('.', ',')}
+            </span>
+          )}
           {card.ultima_aprovacao && (
             <span className={clsx(
               'badge text-[10px] border flex items-center gap-1',

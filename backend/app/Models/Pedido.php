@@ -19,6 +19,7 @@ class Pedido extends Model
         'observacoes',
         'referencias',
         'prazo',
+        'valor',
         'token_aprovacao',
         'cliente_nome',
         'cliente_email',
@@ -31,6 +32,7 @@ class Pedido extends Model
     protected $casts = [
         'prazo' => 'date',
         'referencias' => 'array',
+        'valor' => 'float',
     ];
 
     // Status disponíveis

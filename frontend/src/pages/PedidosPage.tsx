@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
-import { pedidoService, confeccaoService } from '@/services/api'
+import { pedidoService, confeccaoService, shopService, ShopItem } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
-import { Plus, Search, ClipboardList, Calendar, AlertCircle, X, Paperclip, FileText, ImageIcon, Ban, Zap, Clock, ShoppingBag, Sparkles } from 'lucide-react'
+import { Plus, Search, ClipboardList, Calendar, AlertCircle, X, Paperclip, FileText, ImageIcon, Ban, Zap, Clock, ShoppingBag, Sparkles, Clipboard, DollarSign } from 'lucide-react'
 import { format, parseISO, isPast, addHours } from 'date-fns'
 import clsx from 'clsx'
 
@@ -50,7 +50,47 @@ export default function PedidosPage() {
   const [referencias, setReferencias]       = useState<File[]>([])
   const [expresso, setExpresso]             = useState(false)
   const [confeccaoSel, setConfeccaoSel]     = useState<{ plano: string } | null>(null)
+  const [valorPedido, setValorPedido]       = useState<string>('')
+  const [shopItemSel, setShopItemSel]       = useState<string>('')
   const refInputRef                         = useRef<HTMLInputElement>(null)
+
+  // Consulta itens ativos do Shop para seleção rápida de serviços
+  const { data: shopData } = useQuery({
+    queryKey: ['shop-itens-lista'],
+    queryFn: shopService.listarItens,
+  })
+  const shopItens: ShopItem[] = shopData?.itens ?? (Array.isArray(shopData) ? (shopData as any) : [])
+
+  // Suporte para colar imagens diretamente da Área de Transferência (Ctrl + V)
+  useEffect(() => {
+    if (!showForm) return
+
+    function handleWindowPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const pasted: File[] = []
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const blob = items[i].getAsFile()
+          if (blob) {
+            const ext = blob.type.split('/')[1] || 'png'
+            const newFile = new File([blob], `print_${Date.now()}.${ext}`, { type: blob.type })
+            pasted.push(newFile)
+          }
+        }
+      }
+
+      if (pasted.length > 0) {
+        e.preventDefault()
+        setReferencias((prev) => [...prev, ...pasted])
+        toast.success(`${pasted.length} imagem(ns) colada(s) da área de transferência!`, { icon: '📋' })
+      }
+    }
+
+    window.addEventListener('paste', handleWindowPaste)
+    return () => window.removeEventListener('paste', handleWindowPaste)
+  }, [showForm])
 
   // SLA do pedido atual: admin usa plano da confecção selecionada, confecção usa o seu
   const planoAtual = isAdmin()
@@ -81,6 +121,8 @@ export default function PedidosPage() {
       setReferencias([])
       setExpresso(false)
       setConfeccaoSel(null)
+      setValorPedido('')
+      setShopItemSel('')
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -100,12 +142,23 @@ export default function PedidosPage() {
     },
   })
 
+  function handleShopItemChange(itemId: string) {
+    setShopItemSel(itemId)
+    if (!itemId) return
+    const found = shopItens.find((it) => it.id === itemId || String(it.db_id) === itemId)
+    if (found && found.valor > 0) {
+      setValorPedido(String(found.valor))
+      toast.success(`Serviço selecionado: ${found.nome} — R$ ${found.valor.toFixed(2).replace('.', ',')}`, { icon: '🛒' })
+    }
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     // Injeta prazo calculado pelo plano (sobrescreve campo do form)
     fd.set('prazo', prazoCalculado)
     if (expresso) fd.set('expresso', '1')
+    if (valorPedido) fd.set('valor', valorPedido)
     referencias.forEach((file) => fd.append('referencias[]', file))
     criarMutation.mutate(fd as unknown as Record<string, unknown>)
   }
@@ -221,7 +274,16 @@ export default function PedidosPage() {
                       onMouseEnter={(e) => (e.currentTarget.style.background = '#1a1a1a')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? '#111' : '#141414')}
                     >
-                      <td className="px-5 py-3.5 font-medium text-zinc-100">{p.titulo}</td>
+                      <td className="px-5 py-3.5 font-medium text-zinc-100">
+                        <div className="flex items-center gap-2">
+                          <span>{p.titulo}</span>
+                          {(p as any).valor > 0 && (
+                            <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+                              R$ {Number((p as any).valor).toFixed(2).replace('.', ',')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       {isAdmin() && <td className="px-5 py-3.5 text-zinc-500">{p.confeccao?.nome}</td>}
                       <td className="px-5 py-3.5 text-zinc-500">{TIPO_LABEL[p.tipo_impressao]}</td>
                       <td className="px-5 py-3.5">
@@ -267,7 +329,7 @@ export default function PedidosPage() {
 
       {/* Modal novo pedido */}
       {showForm && (
-        <DarkModal title="Novo Pedido" onClose={() => { setShowForm(false); setReferencias([]); setExpresso(false); setConfeccaoSel(null) }}>
+        <DarkModal title="Novo Pedido" onClose={() => { setShowForm(false); setReferencias([]); setExpresso(false); setConfeccaoSel(null); setValorPedido(''); setShopItemSel('') }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isAdmin() && user?.confeccao && (() => {
               const conf = user.confeccao
@@ -411,6 +473,60 @@ export default function PedidosPage() {
                 </p>
               )}
             </div>
+
+            {/* ── Item do Shop & Valor a Cobrar ── */}
+            <div className="p-3.5 rounded-xl border border-zinc-800 bg-[#161619] space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-[#d4a020]" />
+                  Item do Shop / Serviço Adicional
+                  <span className="text-zinc-500 font-normal">(opcional)</span>
+                </label>
+                {valorPedido && Number(valorPedido) > 0 && (
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80 font-mono">
+                    R$ {Number(valorPedido).toFixed(2).replace('.', ',')}
+                  </span>
+                )}
+              </div>
+
+              <select
+                className="input text-xs"
+                value={shopItemSel}
+                onChange={(e) => handleShopItemChange(e.target.value)}
+              >
+                <option value="">Nenhum item do shop (Definir valor manual ou incluso)</option>
+                {shopItens.map((it) => (
+                  <option key={it.id || it.db_id} value={it.id || it.db_id}>
+                    {it.nome} — R$ {it.valor.toFixed(2).replace('.', ',')}
+                  </option>
+                ))}
+              </select>
+
+              <div>
+                <label className="label text-[11px] text-zinc-400">
+                  Valor a Cobrar do Cliente (R$)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">
+                    R$
+                  </span>
+                  <input
+                    name="valor"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={valorPedido}
+                    onChange={(e) => setValorPedido(e.target.value)}
+                    className="input pl-9 font-mono text-sm"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Defina o valor para este pedido (ex: R$ 35,00 para arte avulsa) ou deixe 0 se já incluso no plano.
+                </p>
+              </div>
+            </div>
+
             <div>
               <label className="label">Observações</label>
               <textarea name="observacoes" className="textarea" placeholder="Informações adicionais..." />
@@ -431,7 +547,7 @@ export default function PedidosPage() {
                 onChange={(e) => addReferencias(e.target.files)}
               />
 
-              {/* Dropzone */}
+              {/* Dropzone com suporte a colar imagens da área de transferência */}
               <div
                 className="rounded-lg border-2 border-dashed p-4 text-center cursor-pointer transition-colors"
                 style={{ borderColor: '#2a2a2a', background: '#111' }}
@@ -444,11 +560,15 @@ export default function PedidosPage() {
                   addReferencias(e.dataTransfer.files)
                 }}
               >
-                <Paperclip className="w-5 h-5 mx-auto mb-1.5 text-zinc-700" />
-                <p className="text-xs text-zinc-500">
+                <Paperclip className="w-5 h-5 mx-auto mb-1 text-zinc-700" />
+                <p className="text-xs text-zinc-400">
                   Arraste imagens/PDFs ou <span style={{ color: '#d4a020' }}>clique para selecionar</span>
                 </p>
-                <p className="text-[10px] text-zinc-700 mt-0.5">PNG, JPG, PDF, CDR, AI, PSD... · até 50MB cada</p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#d4a020]/10 text-[#d4a020] border border-[#d4a020]/25 text-[11px] font-semibold">
+                  <Clipboard className="w-3.5 h-3.5" />
+                  <span>Você pode colar imagens direto com Ctrl + V</span>
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-1.5">PNG, JPG, PDF, CDR, AI, PSD... · até 50MB cada</p>
               </div>
 
               {/* Lista de arquivos selecionados */}

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\Confeccao;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class PedidoController extends Controller
 {
@@ -65,8 +66,9 @@ class PedidoController extends Controller
             'titulo'          => 'required|string|max:255',
             'tipo_impressao'  => 'required|in:sublimacao,bordado,serigrafia',
             'observacoes'     => 'nullable|string',
-            'referencias'     => 'nullable|array',
+            'referencias'     => 'nullable',
             'prazo'           => 'nullable|date',
+            'valor'           => 'nullable|numeric|min:0',
             'cliente_nome'    => 'nullable|string|max:255',
             'cliente_email'   => 'nullable|email',
             'cliente_whatsapp'=> 'nullable|string|max:20',
@@ -81,11 +83,31 @@ class PedidoController extends Controller
             ], 422);
         }
 
-        $pedido = Pedido::create($request->only([
+        // Processa arquivos de referências (upload normal ou colados da área de transferência)
+        $refsData = [];
+        if ($request->hasFile('referencias')) {
+            $disk = config('filesystems.default', 'public');
+            foreach ($request->file('referencias') as $arquivo) {
+                $path = $arquivo->store("pedidos/referencias", $disk);
+                $refsData[] = [
+                    'url'      => Storage::disk($disk)->url($path),
+                    'nome'     => $arquivo->getClientOriginalName(),
+                    'tipo'     => $arquivo->getClientOriginalExtension(),
+                    'tamanho'  => $arquivo->getSize(),
+                ];
+            }
+        } elseif (is_array($request->referencias)) {
+            $refsData = $request->referencias;
+        }
+
+        $pedidoData = $request->only([
             'confeccao_id', 'titulo', 'tipo_impressao', 'observacoes',
-            'referencias', 'prazo',
+            'prazo', 'valor',
             'cliente_nome', 'cliente_email', 'cliente_whatsapp',
-        ]));
+        ]);
+        $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
+
+        $pedido = Pedido::create($pedidoData);
         $confeccao->incrementarArteUsada();
 
         return response()->json($pedido->load('confeccao'), 201);
@@ -101,6 +123,7 @@ class PedidoController extends Controller
             'observacoes'      => 'nullable|string',
             'referencias'      => 'nullable|array',
             'prazo'            => 'nullable|date',
+            'valor'            => 'nullable|numeric|min:0',
             'cliente_nome'     => 'nullable|string|max:255',
             'cliente_email'    => 'nullable|email',
             'cliente_whatsapp' => 'nullable|string|max:20',
@@ -108,7 +131,7 @@ class PedidoController extends Controller
 
         $pedido->update($request->only([
             'titulo', 'tipo_impressao', 'observacoes',
-            'referencias', 'prazo',
+            'referencias', 'prazo', 'valor',
             'cliente_nome', 'cliente_email', 'cliente_whatsapp',
         ]));
 
