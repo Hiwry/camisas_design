@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import KanbanPage from '@/pages/KanbanPage'
@@ -26,71 +27,79 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Portfólio inteligente: abre público para visitantes e com layout para logados
+function PortfolioRoute() {
+  const token = useAuthStore((s) => s.token)
+  if (token) {
+    return (
+      <Layout>
+        <PortfolioPage />
+      </Layout>
+    )
+  }
+  return <PortfolioPage isPublic />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Pública */}
+        {/* ── Rotas Públicas ── */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/inicio" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/aprovar/:token" element={<AprovacaoPublica />} />
-        <Route path="/portfolio" element={<PortfolioPage isPublic />} />
+        <Route path="/portfolio" element={<PortfolioRoute />} />
         <Route path="/catalogo" element={<PortfolioPage isPublic />} />
 
-        {/* Privadas */}
+        {/* ── Rotas Privadas (Sistema com Sidebar) ── */}
         <Route
-          path="/"
           element={
             <PrivateRoute>
               <Layout />
             </PrivateRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-
+          <Route path="/app" element={<Navigate to="/dashboard" replace />} />
           <Route
-            path="dashboard"
+            path="/dashboard"
             element={
               <AdminRoute>
                 <DashboardPage />
               </AdminRoute>
             }
           />
-
           <Route
-            path="kanban"
+            path="/kanban"
             element={
               <AdminRoute>
                 <KanbanPage />
               </AdminRoute>
             }
           />
-
-          <Route path="pedidos" element={<PedidosPage />} />
-          <Route path="pedidos/:id" element={<PedidoDetalhe />} />
-          <Route path="portfolio" element={<PortfolioPage />} />
-          <Route path="catalogo" element={<PortfolioPage />} />
-          <Route path="shop" element={<ShopPage />} />
-          <Route path="revisar-arte" element={<RevisaoArtePage />} />
+          <Route path="/pedidos" element={<PedidosPage />} />
+          <Route path="/pedidos/:id" element={<PedidoDetalhe />} />
+          <Route path="/shop" element={<ShopPage />} />
+          <Route path="/revisar-arte" element={<RevisaoArtePage />} />
           <Route
-            path="whatsapp"
+            path="/whatsapp"
             element={
               <AdminRoute>
                 <WhatsAppPage />
               </AdminRoute>
             }
           />
-
           <Route
-            path="confeccoes"
+            path="/confeccoes"
             element={
               <AdminRoute>
                 <ConfeccoesPage />
               </AdminRoute>
             }
           />
-
           <Route
-            path="admin/shop/produtos"
+            path="/admin/shop/produtos"
             element={
               <AdminRoute>
                 <GerenciarShopPage />

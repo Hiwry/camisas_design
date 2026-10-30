@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { authService, creditoService } from '@/services/api'
@@ -15,7 +15,7 @@ const PLANO_CFG: Record<string, { label: string; cor: string; sla: string }> = {
   premium:      { label: 'VIP',    cor: '#8b5cf6', sla: '12h' },
 }
 
-export default function Layout() {
+export default function Layout({ children }: { children?: React.ReactNode } = {}) {
   const { user, logout, isAdmin } = useAuthStore()
   const navigate = useNavigate()
   const conf = user?.confeccao
@@ -57,17 +57,19 @@ export default function Layout() {
       >
         {/* Logo */}
         <div className="flex items-center px-5 py-4 border-b" style={{ borderColor: '#1e1e1e' }}>
-          <img
-            src="/logo.svg"
-            alt="DesignFlow"
-            className="h-8 w-auto"
-            onError={(e) => {
-              // Fallback para PNG se SVG não carregar
-              const img = e.currentTarget
-              img.onerror = null
-              img.src = '/logo.png'
-            }}
-          />
+          <Link to="/" title="Ir para a página inicial" className="flex items-center gap-2">
+            <img
+              src="/logo.svg"
+              alt="DesignFlow"
+              className="h-8 w-auto"
+              onError={(e) => {
+                // Fallback para PNG se SVG não carregar
+                const img = e.currentTarget
+                img.onerror = null
+                img.src = '/logo.png'
+              }}
+            />
+          </Link>
         </div>
 
         {/* Navegação */}
@@ -204,7 +206,7 @@ export default function Layout() {
 
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-auto" style={{ background: '#0a0a0a' }}>
-        <Outlet />
+        {children ?? <Outlet />}
       </main>
 
       {/* Modal de Compra de Créditos */}
