@@ -177,3 +177,4 @@ class RastreioController extends Controller
         return array_values(array_unique(array_filter($variants)));
     }
 }
+

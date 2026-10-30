@@ -10,6 +10,7 @@ import clsx from 'clsx'
 
 /* ── Configuração de planos (SLA) ── */
 const PLANO_CFG: Record<string, { label: string; sla: number; expresso: number; cor: string }> = {
+  avulso:       { label: 'AVULSO', sla: 48, expresso: 6, cor: '#71717a' },
   basico:       { label: 'START',  sla: 48, expresso: 6, cor: '#6366f1' },
   profissional: { label: 'PRO',    sla: 24, expresso: 6, cor: '#d4a020' },
   premium:      { label: 'VIP',    sla: 12, expresso: 6, cor: '#8b5cf6' },

@@ -37,6 +37,7 @@ class Confeccao extends Model
 
     // Config por plano: limite mensal + SLA padrão (horas) + SLA expresso (horas)
     const PLANOS = [
+        'avulso'       => ['limite' => 0,  'label' => 'AVULSO', 'sla_horas' => 48, 'sla_expresso' => 6],
         'basico'       => ['limite' => 10, 'label' => 'START',  'sla_horas' => 48, 'sla_expresso' => 6],
         'profissional' => ['limite' => 20, 'label' => 'PRO',    'sla_horas' => 24, 'sla_expresso' => 6],
         'premium'      => ['limite' => 35, 'label' => 'VIP',    'sla_horas' => 12, 'sla_expresso' => 6],
@@ -44,6 +45,7 @@ class Confeccao extends Model
 
     // Compat legada
     const LIMITES_PLANO = [
+        'avulso'       => 0,
         'basico'       => 10,
         'profissional' => 20,
         'premium'      => 35,
@@ -63,17 +65,28 @@ class Confeccao extends Model
     // Helpers
     public function artesDisponiveis(): int
     {
+        if ($this->plano === 'avulso') {
+            return 9999;
+        }
         $disponivelPlano = max(0, $this->limite_mensal - $this->artes_usadas_mes);
         return $disponivelPlano + (int) ($this->artes_extras ?? 0);
     }
 
     public function podecriarPedido(): bool
     {
+        if ($this->plano === 'avulso') {
+            return true;
+        }
         return $this->artesDisponiveis() > 0;
     }
 
     public function incrementarArteUsada(): void
     {
+        if ($this->plano === 'avulso') {
+            $this->increment('artes_usadas_mes');
+            return;
+        }
+
         // Se ainda tem cota do plano mensal, consome do plano
         if ($this->artes_usadas_mes < $this->limite_mensal) {
             $this->increment('artes_usadas_mes');

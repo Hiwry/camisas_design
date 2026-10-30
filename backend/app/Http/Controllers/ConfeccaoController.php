@@ -28,7 +28,7 @@ class ConfeccaoController extends Controller
             'telefone'      => 'nullable|string|max:20',
             'whatsapp'      => 'nullable|string|max:20',
             'email'         => 'nullable|email',
-            'plano'         => 'required|in:basico,profissional,premium',
+            'plano'         => 'required|in:avulso,basico,profissional,premium',
             'criar_usuario' => 'nullable',
             'password'      => 'nullable|string|min:8',
         ]);

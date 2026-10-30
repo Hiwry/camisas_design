@@ -6,6 +6,7 @@ import { Factory, Plus, Search, Coins } from 'lucide-react'
 import { DarkModal } from './PedidosPage'
 
 const PLANO_CFG: Record<string, { label: string; badge: string; limite: number; sla: string }> = {
+  avulso:       { label: 'AVULSO',badge: 'bg-zinc-800 text-zinc-300 border-zinc-700',      limite: 0,  sla: '48h' },
   basico:       { label: 'START', badge: 'bg-indigo-950 text-indigo-400 border-indigo-900', limite: 10, sla: '48h' },
   profissional: { label: 'PRO',   badge: 'bg-amber-950 text-amber-400 border-amber-900',   limite: 20, sla: '24h' },
   premium:      { label: 'VIP',   badge: 'bg-purple-950 text-purple-400 border-purple-900', limite: 35, sla: '12h' },
@@ -181,22 +182,28 @@ export default function ConfeccoesPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`badge border text-[10px] ${PLANO_BADGE[c.plano] ?? PLANO_BADGE.basico}`}>
-                          {PLANO_CFG[c.plano]?.label ?? c.plano} · {PLANO_LIMITES[c.plano] ?? c.limite_mensal}/mês
+                        <span className={`badge border text-[10px] ${PLANO_BADGE[c.plano] ?? PLANO_BADGE.avulso}`}>
+                          {PLANO_CFG[c.plano]?.label ?? c.plano} {c.plano === 'avulso' ? '· Sob Demanda' : `· ${PLANO_LIMITES[c.plano] ?? c.limite_mensal}/mês`}
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${Math.min(100, pct * 100)}%`, background: barColor }}
-                            />
-                          </div>
-                          <span className="text-xs" style={{ color: barColor }}>
-                            {c.artes_usadas_mes}/{c.limite_mensal}
+                        {c.plano === 'avulso' ? (
+                          <span className="text-xs text-zinc-400">
+                            <strong className="text-zinc-200">{c.artes_usadas_mes}</strong> {c.artes_usadas_mes === 1 ? 'pedido' : 'pedidos'}
                           </span>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${Math.min(100, pct * 100)}%`, background: barColor }}
+                              />
+                            </div>
+                            <span className="text-xs" style={{ color: barColor }}>
+                              {c.artes_usadas_mes}/{c.limite_mensal}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
@@ -262,12 +269,16 @@ export default function ConfeccoesPage() {
             </div>
 
             <div>
-              <label className="label">Plano</label>
-              <select name="plano" className="input" required defaultValue="basico">
+              <label className="label">Plano / Tipo de Cliente *</label>
+              <select name="plano" className="input" required defaultValue="avulso">
+                <option value="avulso">⚡ CLIENTE AVULSO — Sem plano mensal (Demanda pontual / Paga por arte)</option>
                 <option value="basico">START — 10 artes/mês · entrega 48h</option>
                 <option value="profissional">PRO — 20 artes/mês · entrega 24h</option>
                 <option value="premium">VIP — 35 artes/mês · entrega 12h</option>
               </select>
+              <p className="text-[11px] text-zinc-500 mt-1">
+                Selecione <strong>CLIENTE AVULSO</strong> para clientes normais, fardamentos pontuais ou pedidos avulsos sem assinatura.
+              </p>
             </div>
 
             {/* Checkbox para criar ou não usuário com senha */}

@@ -51,7 +51,7 @@ class ConfeccaoController extends Controller
             'telefone'      => 'nullable|string|max:20',
             'whatsapp'      => 'nullable|string|max:20',
             'email'         => 'nullable|email|max:255',
-            'plano'         => 'required|in:basico,profissional,premium',
+            'plano'         => 'required|in:avulso,basico,profissional,premium',
             'criar_usuario' => 'nullable',
             'password'      => 'nullable|string|min:8',
         ]);
@@ -105,7 +105,7 @@ class ConfeccaoController extends Controller
 
         // Apenas admin tem permissão para alterar plano e status ativo
         if ($user->isAdmin()) {
-            $rules['plano'] = 'sometimes|in:basico,profissional,premium';
+            $rules['plano'] = 'sometimes|in:avulso,basico,profissional,premium';
             $rules['ativo'] = 'sometimes|boolean';
         }
 

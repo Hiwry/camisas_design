@@ -10,6 +10,7 @@ import {
 import clsx from 'clsx'
 
 const PLANO_CFG: Record<string, { label: string; cor: string; sla: string }> = {
+  avulso:       { label: 'AVULSO', cor: '#71717a', sla: '48h' },
   basico:       { label: 'START',  cor: '#6366f1', sla: '48h' },
   profissional: { label: 'PRO',    cor: '#d4a020', sla: '24h' },
   premium:      { label: 'VIP',    cor: '#8b5cf6', sla: '12h' },

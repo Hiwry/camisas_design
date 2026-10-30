@@ -30,6 +30,17 @@ return new class extends Migration
                 $table->string('whatsapp', 20)->nullable()->after('telefone');
             }
         });
+
+        // 2. Altera plano para string para suportar 'avulso', 'basico', 'profissional', 'premium' sem limitação de enum
+        try {
+            DB::statement("ALTER TABLE confeccoes MODIFY plano VARCHAR(50) NOT NULL DEFAULT 'avulso'");
+        } catch (\Throwable $e) {
+            try {
+                Schema::table('confeccoes', function (Blueprint $table) {
+                    $table->string('plano', 50)->default('avulso')->change();
+                });
+            } catch (\Throwable $e2) {}
+        }
     }
 
     public function down(): void
@@ -48,3 +59,4 @@ return new class extends Migration
         });
     }
 };
+
