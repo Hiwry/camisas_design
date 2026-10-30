@@ -13,6 +13,7 @@ import WhatsAppPage from '@/pages/WhatsAppPage'
 import ShopPage from '@/pages/ShopPage'
 import GerenciarShopPage from '@/pages/GerenciarShopPage'
 import PortfolioPage from '@/pages/PortfolioPage'
+import RastreioPage from '@/pages/RastreioPage'
 import Layout from '@/components/layout/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,8 @@ export default function App() {
         <Route path="/aprovar/:token" element={<AprovacaoPublica />} />
         <Route path="/portfolio" element={<PortfolioRoute />} />
         <Route path="/catalogo" element={<PortfolioPage isPublic />} />
+        <Route path="/rastreio" element={<RastreioPage />} />
+        <Route path="/acompanhar" element={<RastreioPage />} />
 
         {/* ── Rotas Privadas (Sistema com Sidebar) ── */}
         <Route

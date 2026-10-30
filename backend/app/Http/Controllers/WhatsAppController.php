@@ -190,19 +190,13 @@ class WhatsAppController extends Controller
 
         // Ignora mensagens enviadas por nós mesmos para terceiros (clientes/grupos),
         // mas permite se for mensagem do próprio admin em conversa consigo mesmo
-        if ($fromMe && !$this->ai->isAutorizado($numeroLimpo)) {
+        if ($fromMe && !$this->ai->isAdmin($numeroLimpo)) {
             return response()->json(['status' => 'ignored', 'reason' => 'from_me']);
         }
 
         Log::info("WhatsApp Bot: Mensagem recebida de {$numeroLimpo}: {$mensagem} (fromMe: " . ($fromMe ? 'sim' : 'nao') . ")");
 
-        // Verifica se o número é autorizado
-        if (!$this->ai->isAutorizado($numeroLimpo)) {
-            Log::warning("WhatsApp Bot: Número não autorizado: {$numeroLimpo}");
-            return response()->json(['status' => 'ignored', 'reason' => 'unauthorized']);
-        }
-
-        // Processa a mensagem
+        // Processa a mensagem com roteamento de perfis (admin, confecção parceira, cliente ou novo lead)
         $this->ai->processarMensagem($numeroLimpo, $mensagem);
 
         return response()->json(['status' => 'success']);

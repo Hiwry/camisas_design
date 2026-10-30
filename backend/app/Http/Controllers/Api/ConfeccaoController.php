@@ -39,7 +39,7 @@ class ConfeccaoController extends Controller
         return response()->json($confeccao->load('user'));
     }
 
-    // Cria usuário + confecção (somente admin)
+    // Cria confecção (com ou sem conta de login) (somente admin)
     public function store(Request $request)
     {
         if (!auth()->user()?->isAdmin()) {
@@ -47,28 +47,45 @@ class ConfeccaoController extends Controller
         }
 
         $request->validate([
-            'nome'      => 'required|string|max:255',
-            'email'     => 'required|email|unique:users,email',
-            'password'  => 'required|min:8',
-            'telefone'  => 'nullable|string|max:20',
-            'whatsapp'  => 'nullable|string|max:20',
-            'plano'     => 'required|in:basico,profissional,premium',
+            'nome'          => 'required|string|max:255',
+            'telefone'      => 'nullable|string|max:20',
+            'whatsapp'      => 'nullable|string|max:20',
+            'email'         => 'nullable|email|max:255',
+            'plano'         => 'required|in:basico,profissional,premium',
+            'criar_usuario' => 'nullable',
+            'password'      => 'nullable|string|min:8',
         ]);
 
-        $user = User::create([
-            'name'      => $request->nome,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
-            'role'      => 'confeccao',
-            'whatsapp'  => $request->whatsapp,
-        ]);
+        $userId = null;
+        $criarUsuario = filter_var($request->input('criar_usuario', false), FILTER_VALIDATE_BOOLEAN)
+            || (!empty($request->email) && !empty($request->password));
+
+        if ($criarUsuario) {
+            $request->validate([
+                'email'    => 'required|email|unique:users,email',
+                'password' => 'required|min:8',
+            ]);
+
+            $user = User::create([
+                'name'      => $request->nome,
+                'email'     => $request->email,
+                'password'  => Hash::make($request->password),
+                'role'      => 'confeccao',
+                'whatsapp'  => $request->whatsapp ?? $request->telefone,
+            ]);
+
+            $userId = $user->id;
+        }
 
         $confeccao = Confeccao::create([
-            'user_id'  => $user->id,
-            'nome'     => $request->nome,
-            'telefone' => $request->telefone,
-            'email'    => $request->email,
-            'plano'    => $request->plano,
+            'user_id'       => $userId,
+            'nome'          => $request->nome,
+            'telefone'      => $request->telefone ?? $request->whatsapp,
+            'whatsapp'      => $request->whatsapp ?? $request->telefone,
+            'email'         => $request->email,
+            'plano'         => $request->plano,
+            'limite_mensal' => Confeccao::LIMITES_PLANO[$request->plano] ?? 10,
+            'reset_em'      => now()->toDateString(),
         ]);
 
         return response()->json($confeccao->load('user'), 201);
@@ -82,6 +99,8 @@ class ConfeccaoController extends Controller
         $rules = [
             'nome'     => 'sometimes|string|max:255',
             'telefone' => 'nullable|string|max:20',
+            'whatsapp' => 'nullable|string|max:20',
+            'email'    => 'nullable|email|max:255',
         ];
 
         // Apenas admin tem permissão para alterar plano e status ativo
@@ -93,8 +112,8 @@ class ConfeccaoController extends Controller
         $request->validate($rules);
 
         $camposPermitidos = $user->isAdmin()
-            ? ['nome', 'telefone', 'plano', 'ativo']
-            : ['nome', 'telefone'];
+            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'ativo']
+            : ['nome', 'telefone', 'whatsapp', 'email'];
 
         $confeccao->update($request->only($camposPermitidos));
 
@@ -107,7 +126,9 @@ class ConfeccaoController extends Controller
             abort(403, 'Apenas administradores podem excluir confecções.');
         }
 
-        $confeccao->user()->delete();
+        if ($confeccao->user_id) {
+            $confeccao->user()?->delete();
+        }
         $confeccao->delete();
         return response()->json(null, 204);
     }

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\PortfolioController;
 use App\Http\Controllers\RevisaoArteController;
 use App\Http\Controllers\RevisaoImagemController;
 use App\Http\Controllers\WhatsAppController;
+use App\Http\Controllers\Api\Publico\RastreioController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -42,6 +43,9 @@ Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
 Route::get('/portfolio', [PortfolioController::class, 'index']);
 Route::get('/portfolio/{portfolio}', [PortfolioController::class, 'show']);
 Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [PortfolioController::class, 'curtir']);
+
+// Rastreio público de pedidos pelo WhatsApp / Telefone
+Route::middleware('throttle:30,1')->post('/publico/rastreio', [RastreioController::class, 'rastrear']);
 
 /*
 |--------------------------------------------------------------------------

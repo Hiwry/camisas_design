@@ -15,6 +15,7 @@ class Confeccao extends Model
         'user_id',
         'nome',
         'telefone',
+        'whatsapp',
         'email',
         'plano',
         'limite_mensal',

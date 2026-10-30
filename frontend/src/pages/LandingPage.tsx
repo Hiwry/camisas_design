@@ -23,6 +23,7 @@ import {
   Award,
   Shirt,
   Users,
+  Package,
 } from 'lucide-react'
 
 // Número de WhatsApp para contato direto
@@ -239,7 +240,7 @@ export default function LandingPage() {
           </Link>
 
           {/* Links Desktop */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-zinc-400">
             <a href="#como-funciona" className="hover:text-white transition-colors">
               Como Funciona
             </a>
@@ -248,6 +249,9 @@ export default function LandingPage() {
             </a>
             <Link to="/portfolio" className="hover:text-[#d4a020] transition-colors flex items-center gap-1">
               Portfólio <span className="text-[10px] bg-[#d4a020]/20 text-[#d4a020] px-1.5 py-0.5 rounded font-bold">2026</span>
+            </Link>
+            <Link to="/rastreio" className="text-zinc-200 hover:text-white transition-colors flex items-center gap-1.5 font-semibold">
+              <Package className="w-3.5 h-3.5 text-[#d4a020]" /> Acompanhar Pedido
             </Link>
             <a href="#planos" className="hover:text-white transition-colors">
               Planos & Preços
@@ -325,6 +329,14 @@ export default function LandingPage() {
               >
                 <span>Portfólio / Catálogo</span>
                 <span className="text-[10px] bg-[#d4a020]/20 text-[#d4a020] px-2 py-0.5 rounded font-bold">Novo</span>
+              </Link>
+              <Link
+                to="/rastreio"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-[#d4a020] font-semibold flex items-center gap-2"
+              >
+                <Package className="w-4 h-4" />
+                <span>Acompanhar Pedido</span>
               </Link>
               <a
                 href="#planos"
@@ -932,6 +944,7 @@ export default function LandingPage() {
 
           {/* Links Rodapé */}
           <div className="flex flex-wrap items-center justify-center gap-6 text-zinc-400">
+            <Link to="/rastreio" className="text-zinc-200 hover:text-white transition-colors font-medium">Acompanhar Pedido</Link>
             <Link to="/portfolio" className="hover:text-white transition-colors">Portfólio</Link>
             <a href="#planos" className="hover:text-white transition-colors">Planos</a>
             <a href="#como-funciona" className="hover:text-white transition-colors">Como Funciona</a>
@@ -950,3 +963,4 @@ export default function LandingPage() {
     </div>
   )
 }
+

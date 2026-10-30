@@ -24,29 +24,39 @@ class ConfeccaoController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nome'      => 'required|string|max:255',
-            'email'     => 'required|email|unique:users,email',
-            'password'  => 'required|string|min:8',
-            'whatsapp'  => 'nullable|string|max:20',
-            'plano'     => 'required|in:basico,profissional,premium',
+            'nome'          => 'required|string|max:255',
+            'telefone'      => 'nullable|string|max:20',
+            'whatsapp'      => 'nullable|string|max:20',
+            'email'         => 'nullable|email',
+            'plano'         => 'required|in:basico,profissional,premium',
+            'criar_usuario' => 'nullable',
+            'password'      => 'nullable|string|min:8',
         ]);
 
-        $confeccao = DB::transaction(function () use ($data) {
-            $user = User::create([
-                'name'     => $data['nome'],
-                'email'    => $data['email'],
-                'password' => $data['password'],
-                'role'     => 'confeccao',
-                'whatsapp' => $data['whatsapp'] ?? null,
-            ]);
+        $criarUsuario = filter_var($request->input('criar_usuario', false), FILTER_VALIDATE_BOOLEAN)
+            || (!empty($data['email']) && !empty($data['password']));
+
+        $confeccao = DB::transaction(function () use ($data, $criarUsuario) {
+            $userId = null;
+            if ($criarUsuario) {
+                $user = User::create([
+                    'name'     => $data['nome'],
+                    'email'    => $data['email'],
+                    'password' => $data['password'],
+                    'role'     => 'confeccao',
+                    'whatsapp' => $data['whatsapp'] ?? $data['telefone'] ?? null,
+                ]);
+                $userId = $user->id;
+            }
 
             return Confeccao::create([
-                'user_id'       => $user->id,
+                'user_id'       => $userId,
                 'nome'          => $data['nome'],
-                'email'         => $data['email'],
-                'whatsapp'      => $data['whatsapp'] ?? null,
+                'telefone'      => $data['telefone'] ?? $data['whatsapp'] ?? null,
+                'email'         => $data['email'] ?? null,
+                'whatsapp'      => $data['whatsapp'] ?? $data['telefone'] ?? null,
                 'plano'         => $data['plano'],
-                'limite_mensal' => Confeccao::PLANOS[$data['plano']],
+                'limite_mensal' => Confeccao::LIMITES_PLANO[$data['plano']] ?? 10,
                 'reset_em'      => now()->toDateString(),
             ]);
         });

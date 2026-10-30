@@ -20,11 +20,21 @@ class WhatsAppAIService
      * Cada intenção tem um array de padrões regex
      */
     private array $intencoes = [
+        'novo_pedido' => [
+            'novo pedido', 'fazer pedido', 'fazer um pedido', 'quero fazer um pedido',
+            'criar pedido', 'encomendar', 'nova arte', 'quero uma arte', 'fazer fardamento',
+            'solicitar arte', 'solicitar pedido', 'fazer camisa', 'encomenda',
+        ],
+        'meus_pedidos' => [
+            'meus pedidos', 'meu pedido', 'como est[aá] meu pedido', 'onde est[aá] meu pedido',
+            'status do meu pedido', 'acompanhar pedido', 'rastrear', 'rastreio',
+            'ver meus pedidos', 'lista dos meus pedidos',
+        ],
         'resumo_geral' => [
-            'resumo', 'pedidos', 'relat[oó]rio', 'todos os pedidos',
+            'resumo', 'relat[oó]rio', 'todos os pedidos',
             'como est[aã]o os pedidos', 'vis[aã]o geral', 'overview',
             'me manda os pedidos', 'quero ver os pedidos', 'lista de pedidos',
-            'quantos pedidos', 'meus pedidos',
+            'quantos pedidos',
         ],
         'pedidos_atrasados' => [
             'atrasad[oa]s?', 'atraso', 'vencid[oa]s?', 'atras[oó]',
@@ -62,9 +72,9 @@ class WhatsAppAIService
     }
 
     /**
-     * Verifica se o número é autorizado a usar o chatbot
+     * Verifica se o número é o administrador do sistema
      */
-    public function isAutorizado(string $numero): bool
+    public function isAdmin(string $numero): bool
     {
         if (empty($this->adminNumber)) {
             return false;
@@ -90,25 +100,109 @@ class WhatsAppAIService
     }
 
     /**
-     * Normaliza número brasileiro para DDD + 8 dígitos (remove DDI 55 e nono dígito opcional)
+     * Verifica se o número pode interagir com o bot (aberto para admin, confecções, clientes e leads)
      */
-    private function normalizarNumeroBR(string $numero): string
+    public function isAutorizado(string $numero): bool
     {
-        $num = preg_replace('/[^0-9]/', '', $numero);
-
-        if (str_starts_with($num, '55') && strlen($num) >= 12) {
-            $num = substr($num, 2);
-        }
-
-        if (strlen($num) === 11 && $num[2] === '9') {
-            $num = substr($num, 0, 2) . substr($num, 3);
-        }
-
-        return $num;
+        return true;
     }
 
     /**
-     * Processa uma mensagem recebida e retorna a resposta
+     * Identifica o perfil do remetente (admin, confecção parceira, cliente com pedido ou novo lead)
+     */
+    public function identificarRemetente(string $numero): array
+    {
+        if ($this->isAdmin($numero)) {
+            return [
+                'tipo'      => 'admin',
+                'nome'      => 'Administrador',
+                'confeccao' => null,
+                'pedido'    => null,
+            ];
+        }
+
+        $variants = $this->gerarVariacoesNumero($numero);
+
+        // 1. Confecção cadastrada (mesmo sem login/senha)
+        $confeccao = Confeccao::where(function ($q) use ($variants) {
+            foreach ($variants as $v) {
+                $q->orWhere('whatsapp', 'like', "%{$v}%")
+                  ->orWhere('telefone', 'like', "%{$v}%");
+            }
+        })->first();
+
+        if ($confeccao) {
+            return [
+                'tipo'      => 'confeccao',
+                'nome'      => $confeccao->nome,
+                'confeccao' => $confeccao,
+                'pedido'    => null,
+            ];
+        }
+
+        // 2. Cliente final com pedido registrado
+        $pedido = Pedido::where(function ($q) use ($variants) {
+            foreach ($variants as $v) {
+                $q->orWhere('whatsapp_cliente', 'like', "%{$v}%")
+                  ->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+            }
+        })->latest()->first();
+
+        if ($pedido) {
+            return [
+                'tipo'      => 'cliente',
+                'nome'      => $pedido->nome_cliente ?? $pedido->cliente_nome ?? 'Cliente',
+                'confeccao' => $pedido->confeccao,
+                'pedido'    => $pedido,
+            ];
+        }
+
+        // 3. Novo visitante / Lead
+        return [
+            'tipo'      => 'lead',
+            'nome'      => null,
+            'confeccao' => null,
+            'pedido'    => null,
+        ];
+    }
+
+    /**
+     * Gera variações do número para buscas seguras (com/sem DDI 55, com/sem 9º dígito)
+     */
+    public function gerarVariacoesNumero(string $numero): array
+    {
+        $digits = preg_replace('/\D/', '', $numero);
+        $variants = [$digits];
+
+        $semDdi = $digits;
+        if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+            $semDdi = substr($digits, 2);
+            $variants[] = $semDdi;
+        } else {
+            $variants[] = '55' . $digits;
+        }
+
+        if (strlen($semDdi) === 11 && $semDdi[2] === '9') {
+            $sem9 = substr($semDdi, 0, 2) . substr($semDdi, 3);
+            $variants[] = $sem9;
+            $variants[] = '55' . $sem9;
+        }
+
+        if (strlen($semDdi) === 10) {
+            $com9 = substr($semDdi, 0, 2) . '9' . substr($semDdi, 2);
+            $variants[] = $com9;
+            $variants[] = '55' . $com9;
+        }
+
+        if (strlen($semDdi) >= 8) {
+            $variants[] = substr($semDdi, -8);
+        }
+
+        return array_values(array_unique(array_filter($variants)));
+    }
+
+    /**
+     * Processa uma mensagem recebida e responde adequadamente ao perfil
      */
     public function processarMensagem(string $numero, string $mensagem): void
     {
@@ -119,26 +213,115 @@ class WhatsAppAIService
                 return;
             }
 
-            Log::info("WhatsApp Bot: Mensagem recebida de {$numero}: {$mensagem}");
+            Log::info("WhatsApp Bot: Mensagem de {$numero}: {$mensagem}");
 
-            // Camada 1: Classificação local (sem IA, 0 tokens)
+            $remetente = $this->identificarRemetente($numero);
+            $stateKey = 'wa_fluxo_pedido_' . $numero;
+            $estado = Cache::get($stateKey);
+
+            $msgLower = mb_strtolower($mensagem);
+
+            // Verificação de cancelamento de fluxo
+            if (in_array($msgLower, ['cancelar', 'sair', 'parar', 'cancela', 'abortar'])) {
+                if ($estado) {
+                    Cache::forget($stateKey);
+                    $this->wa->enviarTexto($numero, "❌ *Criação de pedido cancelada.*\n\nSe precisar de ajuda ou consultar pedidos, digite *menu*.");
+                    return;
+                }
+            }
+
+            // Se o usuário está no meio do fluxo conversacional para criar um pedido
+            if ($estado) {
+                $resposta = $this->processarEtapaPedido($numero, $mensagem, $estado, $remetente);
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // Camada 1: Classificação local (0 tokens)
             $classificacao = $this->classificarLocal($mensagem);
 
-            // Camada 2: Se não classificou localmente, tenta com IA (poucos tokens)
+            // Camada 2: Se não classificou localmente, tenta com IA
             if (!$classificacao) {
                 $classificacao = $this->classificarComIA($mensagem);
             }
 
-            // Gerar resposta baseada na intenção
-            $resposta = $this->gerarResposta($classificacao, $mensagem);
+            $intencao = $classificacao['intencao'] ?? 'ajuda';
 
-            // Enviar resposta via WhatsApp
+            // INTENÇÃO: Criar Novo Pedido via Chatbot
+            if ($intencao === 'novo_pedido') {
+                Cache::put($stateKey, [
+                    'etapa'        => 'titulo',
+                    'confeccao_id' => $remetente['confeccao']?->id ?? null,
+                    'nome_cliente' => $remetente['nome'] ?? null,
+                ], now()->addMinutes(30));
+
+                $saudacao = !empty($remetente['nome']) ? "Olá, *{$remetente['nome']}*! " : "Olá! ";
+                $resposta = "🎨 *{$saudacao}Vamos iniciar seu novo pedido de arte!* 👕\n"
+                    . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    . "Por favor, informe o *título ou descrição da peça*:\n"
+                    . "_(Ex: Camiseta Terceirão 2026, Fardamento Futebol Real Madrid, Polo Corporativa Azul)_\n\n"
+                    . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // INTENÇÃO: Consultar "Meus Pedidos"
+            if ($intencao === 'meus_pedidos') {
+                if ($remetente['tipo'] === 'confeccao') {
+                    $resposta = $this->relatorioPedidosConfeccao($remetente['confeccao'], $numero);
+                } elseif ($remetente['tipo'] === 'cliente') {
+                    $resposta = $this->relatorioPedidosCliente($numero);
+                } elseif ($remetente['tipo'] === 'admin') {
+                    $resposta = $this->relatorioResumoGeral();
+                } else {
+                    $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número.\n\n"
+                        . "• Para fazer um pedido agora pelo WhatsApp, digite *Novo Pedido*.\n"
+                        . "• Para consultar um pedido específico, digite *pedido #número* (ex: _pedido 12_).\n"
+                        . "• Para rastrear no site: https://camisetadesign.com.br/rastreio?tel={$numero}";
+                }
+
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // INTENÇÃO: Detalhe de Pedido Específico (#123)
+            if ($intencao === 'detalhe_pedido' && !empty($classificacao['pedido_id'])) {
+                $resposta = $this->relatorioDetalhePedidoSeguro($classificacao['pedido_id'], $remetente, $numero);
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // Roteamento por tipo de usuário:
+            // 1. ADMIN: mantém comandos gerenciais completos
+            if ($remetente['tipo'] === 'admin') {
+                $resposta = $this->gerarResposta($classificacao, $mensagem);
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // 2. CONFECÇÃO CADASTRADA (mesmo sem login/senha)
+            if ($remetente['tipo'] === 'confeccao') {
+                if (in_array($intencao, ['pedidos_atrasados', 'prazos_entrega', 'resumo_geral', 'pedidos_por_status'])) {
+                    $resposta = $this->relatorioPedidosConfeccao($remetente['confeccao'], $numero);
+                } else {
+                    $resposta = $this->mensagemAjudaConfeccao($remetente['confeccao'], $numero);
+                }
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // 3. CLIENTE COM PEDIDO
+            if ($remetente['tipo'] === 'cliente') {
+                $resposta = $this->relatorioPedidosCliente($numero);
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // 4. VISITANTE / NOVO LEAD
+            $resposta = $this->mensagemAjudaVisitante();
             $this->wa->enviarTexto($numero, $resposta);
 
-            Log::info("WhatsApp Bot: Resposta enviada para {$numero}", [
-                'intencao' => $classificacao['intencao'] ?? 'desconhecida',
-                'usou_ia'  => $classificacao['via_ia'] ?? false,
-            ]);
         } catch (\Exception $e) {
             Log::error("WhatsApp Bot erro: " . $e->getMessage(), [
                 'numero'   => $numero,
@@ -146,12 +329,9 @@ class WhatsAppAIService
                 'trace'    => $e->getTraceAsString(),
             ]);
 
-            // Tenta enviar mensagem de erro amigável
             try {
-                $this->wa->enviarTexto($numero, "❌ Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente em alguns instantes.");
-            } catch (\Exception $e2) {
-                Log::error("WhatsApp Bot: Falha ao enviar erro: " . $e2->getMessage());
-            }
+                $this->wa->enviarTexto($numero, "❌ Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente em instantes.");
+            } catch (\Throwable $e2) {}
         }
     }
 
@@ -287,7 +467,9 @@ class WhatsAppAIService
         return 'Classifique a intenção do usuário em uma destas categorias para um sistema de gestão de pedidos de camisetas. Retorne APENAS JSON, sem texto extra.
 
 Categorias:
-- resumo_geral: quer ver todos os pedidos
+- novo_pedido: quer fazer um novo pedido, encomendar arte ou criar fardamento
+- meus_pedidos: quer consultar seus próprios pedidos ou acompanhar status
+- resumo_geral: quer ver todos os pedidos gerais do sistema (admin)
 - pedidos_atrasados: quer ver pedidos em atraso
 - prazos_entrega: quer ver datas de entrega
 - detalhe_pedido: quer detalhes de um pedido específico (extraia pedido_id se mencionado)
@@ -687,5 +869,297 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
         if ($pct >= 90) return "🔴 {$barra} {$pct}%";
         if ($pct >= 70) return "🟡 {$barra} {$pct}%";
         return "🟢 {$barra} {$pct}%";
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // FLUXO INTERATIVO & RELATÓRIOS POR PERFIL (CONFECÇÃO / CLIENTE)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Processa cada etapa da máquina de estados para criação de pedido via WhatsApp
+     */
+    private function processarEtapaPedido(string $numero, string $mensagem, array $estado, array $remetente): string
+    {
+        $stateKey = 'wa_fluxo_pedido_' . $numero;
+        $etapa = $estado['etapa'] ?? 'titulo';
+
+        // ETAPA 1: Coleta o Título da Peça
+        if ($etapa === 'titulo') {
+            $estado['titulo'] = $mensagem;
+            $estado['etapa'] = 'tipo_impressao';
+            Cache::put($stateKey, $estado, now()->addMinutes(30));
+
+            return "👕 *Tipo de Estampa / Produção:*\n\n"
+                . "Qual o processo deste pedido?\n\n"
+                . "*1* — Sublimação Total (Fardamento Esportivo / Terceirão)\n"
+                . "*2* — Bordado (Polos / Jalecos / Bonés)\n"
+                . "*3* — Serigrafia / Silk (Algodão / Moda)\n\n"
+                . "_Responda apenas com *1*, *2* ou *3*._";
+        }
+
+        // ETAPA 2: Coleta o Tipo de Impressão
+        if ($etapa === 'tipo_impressao') {
+            $opcao = trim(mb_strtolower($mensagem));
+            $tipo = match ($opcao) {
+                '1', 'sublimacao', 'sublimação' => 'sublimacao',
+                '2', 'bordado' => 'bordado',
+                '3', 'serigrafia', 'silk' => 'serigrafia',
+                default => null,
+            };
+
+            if (!$tipo) {
+                return "⚠️ Por favor, escolha uma opção válida:\n\n"
+                    . "*1* — Sublimação Total\n"
+                    . "*2* — Bordado\n"
+                    . "*3* — Serigrafia / Silk\n\n"
+                    . "_(Ou digite *cancelar* para desistir)_";
+            }
+
+            $estado['tipo_impressao'] = $tipo;
+            $estado['etapa'] = 'observacoes';
+            Cache::put($stateKey, $estado, now()->addMinutes(30));
+
+            $tipoNome = match ($tipo) {
+                'sublimacao' => 'Sublimação Total',
+                'bordado'    => 'Bordado',
+                'serigrafia' => 'Serigrafia / Silk',
+            };
+
+            return "📝 *Detalhes e Observações ({$tipoNome})*\n\n"
+                . "Descreva cores predominantes, mascote, referências, posições ou quantidade de peças.\n\n"
+                . "_(Se não tiver observações agora, digite *nenhuma*)_";
+        }
+
+        // ETAPA 3: Coleta Observações e Cria o Pedido no Banco
+        if ($etapa === 'observacoes') {
+            $obsLower = mb_strtolower(trim($mensagem));
+            $obs = ($obsLower === 'nenhuma' || $obsLower === 'nao' || $obsLower === 'não') ? null : $mensagem;
+
+            $confeccaoId = $estado['confeccao_id'] ?? null;
+            if (!$confeccaoId) {
+                // Tenta associar à primeira confecção ativa ou cria stub
+                $primeira = Confeccao::where('ativo', true)->first();
+                $confeccaoId = $primeira?->id ?? 1;
+            }
+
+            $pedido = Pedido::create([
+                'confeccao_id'     => $confeccaoId,
+                'titulo'           => $estado['titulo'],
+                'tipo_impressao'   => $estado['tipo_impressao'],
+                'status'           => 'aguardando_briefing',
+                'observacoes'      => $obs,
+                'whatsapp_cliente' => $numero,
+                'nome_cliente'     => $remetente['nome'] ?? 'Cliente WhatsApp',
+            ]);
+
+            Cache::forget($stateKey);
+
+            $tipoNome = match ($pedido->tipo_impressao) {
+                'sublimacao' => 'Sublimação Total',
+                'bordado'    => 'Bordado',
+                'serigrafia' => 'Serigrafia / Silk',
+                default      => $pedido->tipo_impressao,
+            };
+
+            // Notifica Admin no WhatsApp
+            if (!empty($this->adminNumber)) {
+                try {
+                    $admins = explode(',', $this->adminNumber);
+                    $adminDestino = trim($admins[0]);
+                    if (!empty($adminDestino) && $adminDestino !== '*') {
+                        $msgAdmin = "🚨 *Novo Pedido via WhatsApp Bot!*\n"
+                            . "━━━━━━━━━━━━━━━━━━━━━\n"
+                            . "• *Pedido:* #{$pedido->id} — {$pedido->titulo}\n"
+                            . "• *Cliente / Confecção:* " . ($remetente['nome'] ?? 'Cliente WhatsApp') . "\n"
+                            . "• *WhatsApp:* {$numero}\n"
+                            . "• *Processo:* {$tipoNome}\n"
+                            . ($obs ? "• *Obs:* {$obs}\n" : "")
+                            . "\n👉 Acesse o painel: https://camisetadesign.com.br/pedidos/{$pedido->id}";
+                        $this->wa->enviarTexto($adminDestino, $msgAdmin);
+                    }
+                } catch (\Throwable $te) {
+                    Log::error("WhatsApp Bot: Erro ao notificar admin: " . $te->getMessage());
+                }
+            }
+
+            return "✅ *Pedido Criado com Sucesso!*\n"
+                . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                . "📋 *Resumo:*\n"
+                . "• *Pedido:* #{$pedido->id}\n"
+                . "• *Título:* {$pedido->titulo}\n"
+                . "• *Processo:* {$tipoNome}\n"
+                . "• *Status:* 📝 Aguardando Briefing / Produção\n"
+                . ($obs ? "• *Obs:* {$obs}\n" : "")
+                . "\n🎨 Nossa equipe já foi acionada para iniciar sua arte!\n\n"
+                . "Acompanhe seus pedidos em tempo real:\n"
+                . "👉 https://camisetadesign.com.br/rastreio?tel={$numero}\n\n"
+                . "_Se precisar de mais alguma informação, basta mandar uma mensagem!_";
+        }
+
+        Cache::forget($stateKey);
+        return "⚠️ Fluxo reiniciado. Como posso te ajudar?";
+    }
+
+    /**
+     * Relatório de pedidos pertencentes a uma confecção específica
+     */
+    public function relatorioPedidosConfeccao(Confeccao $confeccao, string $numero): string
+    {
+        $pedidos = Pedido::where('confeccao_id', $confeccao->id)
+            ->whereNotIn('status', ['cancelado'])
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        if ($pedidos->isEmpty()) {
+            return "📦 *Olá, {$confeccao->nome}!* 👋\n\n"
+                . "Você não possui pedidos ativos no momento.\n\n"
+                . "💡 Deseja iniciar uma nova arte? Digite *Novo Pedido*!";
+        }
+
+        $texto = "📦 *Pedidos Ativos — {$confeccao->nome}*\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n\n";
+
+        foreach ($pedidos as $p) {
+            $emoji = $this->emojiStatus($p->status);
+            $label = Pedido::STATUS_LABELS[$p->status] ?? $p->status;
+            $prazo = $p->prazo ? $p->prazo->format('d/m') : 'A definir';
+            $atrasado = $p->estaAtrasado() ? ' ⚠️' : '';
+
+            $texto .= "{$emoji} *#{$p->id} — {$p->titulo}*\n";
+            $texto .= "  • Status: *{$label}*\n";
+            $texto .= "  • Prazo: {$prazo}{$atrasado}\n";
+
+            if ($p->status === 'aguardando_aprovacao') {
+                $texto .= "  • 👉 *Aprovar arte:* https://camisetadesign.com.br/aprovar/{$p->token_aprovacao}\n";
+            }
+            $texto .= "\n";
+        }
+
+        $texto .= "━━━━━━━━━━━━━━━━━━━━━\n";
+        $texto .= "🎨 Para fazer outro pedido, digite *Novo Pedido*.\n";
+        $texto .= "🌐 Acompanhe no portal: https://camisetadesign.com.br/rastreio?tel={$numero}";
+
+        return $texto;
+    }
+
+    /**
+     * Relatório de pedidos para cliente final
+     */
+    public function relatorioPedidosCliente(string $numero): string
+    {
+        $variants = $this->gerarVariacoesNumero($numero);
+
+        $pedidos = Pedido::where(function ($q) use ($variants) {
+            foreach ($variants as $v) {
+                $q->orWhere('whatsapp_cliente', 'like', "%{$v}%")
+                  ->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+            }
+        })
+        ->orderBy('created_at', 'desc')
+        ->limit(10)
+        ->get();
+
+        if ($pedidos->isEmpty()) {
+            return "🔍 *Seus Pedidos*\n\nNenhum pedido encontrado para o seu número.\n\n"
+                . "Para criar uma nova arte, digite *Novo Pedido*.";
+        }
+
+        $texto = "📦 *Seus Pedidos — Camiseta Design*\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n\n";
+
+        foreach ($pedidos as $p) {
+            $emoji = $this->emojiStatus($p->status);
+            $label = Pedido::STATUS_LABELS[$p->status] ?? $p->status;
+            $prazo = $p->prazo ? $p->prazo->format('d/m') : 'A definir';
+
+            $texto .= "{$emoji} *#{$p->id} — {$p->titulo}*\n";
+            $texto .= "  • Status: *{$label}*\n";
+            $texto .= "  • Prazo: {$prazo}\n";
+
+            if ($p->status === 'aguardando_aprovacao') {
+                $texto .= "  • 👉 *Aprovar arte:* https://camisetadesign.com.br/aprovar/{$p->token_aprovacao}\n";
+            }
+            $texto .= "\n";
+        }
+
+        $texto .= "━━━━━━━━━━━━━━━━━━━━━\n";
+        $texto .= "🌐 Acompanhe no portal: https://camisetadesign.com.br/rastreio?tel={$numero}";
+
+        return $texto;
+    }
+
+    /**
+     * Detalhes seguros de um pedido com validação de pertencimento
+     */
+    public function relatorioDetalhePedidoSeguro(int $pedidoId, array $remetente, string $numero): string
+    {
+        $pedido = Pedido::with(['confeccao', 'arteAtiva', 'ultimaAprovacao'])->find($pedidoId);
+
+        if (!$pedido) {
+            return "❌ Pedido *#{$pedidoId}* não foi encontrado.";
+        }
+
+        if ($remetente['tipo'] === 'confeccao' && $pedido->confeccao_id !== $remetente['confeccao']?->id) {
+            return "⚠️ O pedido *#{$pedidoId}* não pertence à sua conta de confecção.";
+        }
+
+        $emoji = $this->emojiStatus($pedido->status);
+        $statusLabel = Pedido::STATUS_LABELS[$pedido->status] ?? $pedido->status;
+        $prazo = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : 'Em definição';
+        $tipo = ucfirst($pedido->tipo_impressao ?? 'Sublimação');
+
+        $texto = "🔍 *Pedido #{$pedido->id} — {$pedido->titulo}*\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+            . "{$emoji} *Status:* {$statusLabel}\n"
+            . "👕 *Tipo:* {$tipo}\n"
+            . "📅 *Prazo:* {$prazo}\n";
+
+        if ($pedido->observacoes) {
+            $texto .= "📝 *Observações:* {$pedido->observacoes}\n";
+        }
+
+        if ($pedido->status === 'aguardando_aprovacao') {
+            $texto .= "\n👉 *Aprovar Arte Online:*\n"
+                . "https://camisetadesign.com.br/aprovar/{$pedido->token_aprovacao}\n";
+        } elseif ($pedido->status === 'aprovado' || $pedido->status === 'finalizado') {
+            $texto .= "\n✅ *Arte aprovada com sucesso!* Pronta para estampar.\n";
+        }
+
+        return $texto;
+    }
+
+    /**
+     * Menu de ajuda para Confecções cadastradas
+     */
+    public function mensagemAjudaConfeccao(Confeccao $confeccao, string $numero): string
+    {
+        return "🤖 *Olá, {$confeccao->nome}!* 👋\n"
+            . "Sou o assistente virtual da *Camiseta Design*.\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+            . "Como posso ajudar você hoje?\n\n"
+            . "📦 *\"Meus Pedidos\"* — Ver a lista e status dos seus pedidos\n"
+            . "🎨 *\"Novo Pedido\"* — Encomendar uma nova arte ou fardamento\n"
+            . "🔍 *\"Pedido #12\"* — Ver detalhes de um pedido específico\n"
+            . "🌐 *\"Rastreio\"* — Link do portal de acompanhamento\n\n"
+            . "💡 Você também pode perguntar naturalmente, ex:\n"
+            . "• _\"Como tá o fardamento do Real?\"_\n"
+            . "• _\"Tem alguma arte aguardando aprovação?\"_";
+    }
+
+    /**
+     * Menu de ajuda para Visitantes / Novos Leads
+     */
+    public function mensagemAjudaVisitante(): string
+    {
+        return "👋 *Olá! Bem-vindo à Camiseta Design!* 🎨👕\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n"
+            . "Somos especialistas em criação e vetorização de artes para fardamentos esportivos, camisetas escolares e moda.\n\n"
+            . "Como posso te ajudar hoje?\n\n"
+            . "🎨 *\"Novo Pedido\"* — Encomendar arte ou fardamento\n"
+            . "🔍 *\"Rastrear\"* — Consultar o andamento de um pedido\n"
+            . "🌐 *Nosso Site:* https://camisetadesign.com.br\n"
+            . "🖼️ *Portfólio:* https://camisetadesign.com.br/portfolio\n\n"
+            . "Se preferir, deixe sua mensagem que um designer falará com você em breve!";
     }
 }

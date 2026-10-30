@@ -127,6 +127,11 @@ export const aprovacaoService = {
     }).then((r) => r.data),
 }
 
+export const rastreioService = {
+  buscar: (telefone: string) =>
+    api.post('/publico/rastreio', { telefone }).then((r) => r.data),
+}
+
 export const creditoService = {
   saldo: () => api.get('/creditos/saldo').then((r) => r.data),
   comprar: (quantidade: number) =>
