@@ -222,7 +222,7 @@ export default function PedidoDetalhe() {
   const temFonte = !!arteAtiva?.arquivo_url
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-5 animate-[fadeIn_0.2s_ease-out]">
+    <div className="p-3 sm:p-5 md:p-8 max-w-4xl mx-auto space-y-4 sm:space-y-5 animate-[fadeIn_0.2s_ease-out]">
 
       {/* Voltar */}
       <button

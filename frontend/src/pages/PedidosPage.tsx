@@ -203,7 +203,7 @@ export default function PedidosPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto p-3 sm:p-5 md:p-6 space-y-4">
 
         {/* Filtros */}
         <div className="flex gap-3 flex-wrap">

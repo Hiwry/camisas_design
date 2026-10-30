@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Arte;
 use App\Models\Pedido;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class ArteController extends Controller
@@ -80,7 +82,8 @@ class ArteController extends Controller
             if (!$ehPreview && !$primeiroFonteUrl) {
                 $primeiroFonteUrl = $url;
                 $primeiroFonteNome = $origName;
-                $primeiroFonteTipo = $ext === 'pdf' ? 'pdf' : 'fonte';
+                // Coluna enum('pdf', 'imagem') no banco legado — mantém compatibilidade
+                $primeiroFonteTipo = ($ext === 'pdf') ? 'pdf' : 'imagem';
                 $primeiroFonteTamanho = $size;
             }
         };
@@ -113,15 +116,24 @@ class ArteController extends Controller
 
         $isFinal = filter_var($request->input('is_final', false), FILTER_VALIDATE_BOOLEAN);
 
+        $temColunasNovas = false;
+        try {
+            $temColunasNovas = Schema::hasColumn('artes', 'arquivos');
+        } catch (\Throwable $e) {
+            $temColunasNovas = false;
+        }
+
         // Se marcada como final, limpa o is_final de versões anteriores
-        if ($isFinal) {
-            Arte::where('pedido_id', $pedido->id)->update(['is_final' => false]);
+        if ($isFinal && $temColunasNovas) {
+            try {
+                Arte::where('pedido_id', $pedido->id)->update(['is_final' => false]);
+            } catch (\Throwable $e) {}
         }
 
         // Desativa versões anteriores e cria a nova como ativa
         Arte::where('pedido_id', $pedido->id)->update(['ativa' => false]);
 
-        $arte = Arte::create([
+        $arteData = [
             'pedido_id'       => $pedido->id,
             'versao'          => $versao,
             'arquivo_url'     => $primeiroFonteUrl ?? $primeiroPreviewUrl,
@@ -130,12 +142,23 @@ class ArteController extends Controller
             'arquivo_tamanho' => $primeiroFonteTamanho,
             'preview_url'     => $primeiroPreviewUrl,
             'preview_nome'    => $primeiroPreviewNome,
-            'arquivos'        => !empty($arquivosLista) ? $arquivosLista : null,
             'ativa'           => true,
-            'is_final'        => $isFinal,
-            'notas'           => $request->input('notas'),
             'enviada_em'      => now(),
-        ]);
+        ];
+
+        if ($temColunasNovas) {
+            $arteData['arquivos'] = !empty($arquivosLista) ? $arquivosLista : null;
+            $arteData['is_final'] = $isFinal;
+            $arteData['notas']    = $request->input('notas');
+        }
+
+        try {
+            $arte = Arte::create($arteData);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::warning("ArteController: Erro ao salvar arte com novas colunas, tentando fallback legado: " . $e->getMessage());
+            unset($arteData['arquivos'], $arteData['is_final'], $arteData['notas']);
+            $arte = Arte::create($arteData);
+        }
 
         if ($isFinal) {
             $pedido->update(['status' => 'aprovado']);
@@ -149,14 +172,22 @@ class ArteController extends Controller
     public function marcarFinal(Arte $arte)
     {
         $this->authorizePedido($arte->pedido);
-        $arte->marcarComoFinal();
+        try {
+            $arte->marcarComoFinal();
+        } catch (\Throwable $e) {
+            if ($arte->pedido && $arte->pedido->status !== 'finalizado') {
+                $arte->pedido->update(['status' => 'aprovado']);
+            }
+        }
         return response()->json($arte->fresh());
     }
 
     public function desmarcarFinal(Arte $arte)
     {
         $this->authorizePedido($arte->pedido);
-        $arte->desmarcarFinal();
+        try {
+            $arte->desmarcarFinal();
+        } catch (\Throwable $e) {}
         return response()->json($arte->fresh());
     }
 
