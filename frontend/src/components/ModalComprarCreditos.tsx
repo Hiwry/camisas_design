@@ -103,7 +103,7 @@ export default function ModalComprarCreditos({ onClose, onSuccess }: Props) {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0"
+          className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b flex-shrink-0"
           style={{ background: '#141414', borderColor: '#222' }}
         >
           <div className="flex items-center gap-2.5">
@@ -127,7 +127,7 @@ export default function ModalComprarCreditos({ onClose, onSuccess }: Props) {
         </div>
 
         {/* Corpo */}
-        <div className="p-6 overflow-y-auto max-h-[80vh] space-y-5">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[80vh] space-y-4 sm:space-y-5">
           {etapa === 'selecionar' && (
             <>
               {/* Informativo */}

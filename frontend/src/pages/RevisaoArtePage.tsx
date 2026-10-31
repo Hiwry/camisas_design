@@ -158,26 +158,26 @@ export default function RevisaoArtePage() {
   const podeComecar  = !!refImg && !!arteImg && !analisarMutation.isPending
 
   return (
-    <div className="min-h-full p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-[fadeIn_0.2s_ease-out]">
+    <div className="min-h-full p-3.5 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-[fadeIn_0.2s_ease-out]">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center gap-2.5 sm:gap-3 mb-1">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,rgba(212,160,32,0.2),rgba(212,160,32,0.08))', border: '1px solid rgba(212,160,32,0.3)' }}
             >
               <Sparkles className="w-4 h-4" style={{ color: '#d4a020' }} />
             </div>
-            <h1 className="text-xl font-black text-white">Revisão de Arte com IA</h1>
+            <h1 className="text-lg sm:text-xl font-black text-white">Revisão de Arte com IA</h1>
           </div>
-          <p className="text-sm text-zinc-500 ml-12">
+          <p className="text-xs sm:text-sm text-zinc-500 sm:ml-12">
             Envie a referência e a arte final — a IA detecta erros antes da entrega.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 ml-12 sm:ml-0 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Card de Créditos */}
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs"
@@ -215,7 +215,7 @@ export default function RevisaoArtePage() {
       {/* Banner se cliente estiver sem créditos */}
       {!isAdm && saldoCreditos === 0 && (
         <div
-          className="rounded-2xl p-4 border flex items-center justify-between gap-4"
+          className="rounded-2xl p-4 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
           style={{ background: 'rgba(239,68,68,0.06)', borderColor: 'rgba(239,68,68,0.25)' }}
         >
           <div className="flex items-center gap-3">
@@ -231,7 +231,7 @@ export default function RevisaoArtePage() {
           </div>
           <button
             onClick={() => setShowComprarModal(true)}
-            className="btn-primary text-xs px-4 py-2.5 whitespace-nowrap flex-shrink-0 flex items-center gap-2"
+            className="w-full sm:w-auto justify-center btn-primary text-xs px-4 py-2.5 whitespace-nowrap flex-shrink-0 flex items-center gap-2"
           >
             <Plus className="w-3.5 h-3.5" /> Adicionar Créditos
           </button>

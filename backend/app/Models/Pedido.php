@@ -63,6 +63,24 @@ class Pedido extends Model
             if (empty($pedido->token_aprovacao)) {
                 $pedido->token_aprovacao = Str::random(64);
             }
+            if (empty($pedido->attributes['whatsapp_cliente']) && !empty($pedido->attributes['cliente_whatsapp'])) {
+                $pedido->attributes['whatsapp_cliente'] = $pedido->attributes['cliente_whatsapp'];
+            }
+            if (empty($pedido->attributes['cliente_whatsapp']) && !empty($pedido->attributes['whatsapp_cliente'])) {
+                $pedido->attributes['cliente_whatsapp'] = $pedido->attributes['whatsapp_cliente'];
+            }
+            if (empty($pedido->attributes['nome_cliente']) && !empty($pedido->attributes['cliente_nome'])) {
+                $pedido->attributes['nome_cliente'] = $pedido->attributes['cliente_nome'];
+            }
+            if (empty($pedido->attributes['cliente_nome']) && !empty($pedido->attributes['nome_cliente'])) {
+                $pedido->attributes['cliente_nome'] = $pedido->attributes['nome_cliente'];
+            }
+            if (empty($pedido->attributes['email_cliente']) && !empty($pedido->attributes['cliente_email'])) {
+                $pedido->attributes['email_cliente'] = $pedido->attributes['cliente_email'];
+            }
+            if (empty($pedido->attributes['cliente_email']) && !empty($pedido->attributes['email_cliente'])) {
+                $pedido->attributes['cliente_email'] = $pedido->attributes['email_cliente'];
+            }
         });
     }
 
@@ -92,14 +110,15 @@ class Pedido extends Model
         return $this->hasOne(Aprovacao::class)->latestOfMany();
     }
 
-    // Acessores e Mutatores para compatibilidade de nomenclatura (colunas reais no banco: cliente_nome, cliente_email, cliente_whatsapp)
+    // Acessores e Mutatores para compatibilidade total de nomenclatura (cliente_* e *_cliente)
     public function getWhatsappClienteAttribute(): ?string
     {
-        return $this->attributes['cliente_whatsapp'] ?? $this->attributes['whatsapp_cliente'] ?? null;
+        return $this->attributes['whatsapp_cliente'] ?? $this->attributes['cliente_whatsapp'] ?? null;
     }
 
     public function setWhatsappClienteAttribute(?string $value): void
     {
+        $this->attributes['whatsapp_cliente'] = $value;
         $this->attributes['cliente_whatsapp'] = $value;
     }
 
@@ -111,15 +130,17 @@ class Pedido extends Model
     public function setClienteWhatsappAttribute(?string $value): void
     {
         $this->attributes['cliente_whatsapp'] = $value;
+        $this->attributes['whatsapp_cliente'] = $value;
     }
 
     public function getEmailClienteAttribute(): ?string
     {
-        return $this->attributes['cliente_email'] ?? $this->attributes['email_cliente'] ?? null;
+        return $this->attributes['email_cliente'] ?? $this->attributes['cliente_email'] ?? null;
     }
 
     public function setEmailClienteAttribute(?string $value): void
     {
+        $this->attributes['email_cliente'] = $value;
         $this->attributes['cliente_email'] = $value;
     }
 
@@ -131,15 +152,17 @@ class Pedido extends Model
     public function setClienteEmailAttribute(?string $value): void
     {
         $this->attributes['cliente_email'] = $value;
+        $this->attributes['email_cliente'] = $value;
     }
 
     public function getNomeClienteAttribute(): ?string
     {
-        return $this->attributes['cliente_nome'] ?? $this->attributes['nome_cliente'] ?? null;
+        return $this->attributes['nome_cliente'] ?? $this->attributes['cliente_nome'] ?? null;
     }
 
     public function setNomeClienteAttribute(?string $value): void
     {
+        $this->attributes['nome_cliente'] = $value;
         $this->attributes['cliente_nome'] = $value;
     }
 
@@ -151,6 +174,7 @@ class Pedido extends Model
     public function setClienteNomeAttribute(?string $value): void
     {
         $this->attributes['cliente_nome'] = $value;
+        $this->attributes['nome_cliente'] = $value;
     }
 
     // Helpers

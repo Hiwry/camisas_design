@@ -21,7 +21,7 @@ export default function KanbanPage() {
           Arraste os cards para mover entre colunas
         </p>
       </div>
-      <div className="flex-1 overflow-hidden p-6">
+      <div className="flex-1 overflow-hidden p-3 sm:p-5 md:p-6">
         <KanbanBoard />
       </div>
     </div>

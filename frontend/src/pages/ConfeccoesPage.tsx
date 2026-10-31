@@ -91,7 +91,7 @@ export default function ConfeccoesPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto p-3 sm:p-5 md:p-6 space-y-4">
 
         {/* Busca */}
         <div className="relative max-w-xs">
@@ -119,7 +119,8 @@ export default function ConfeccoesPage() {
               <p className="text-sm">Nenhuma confecção cadastrada.</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr style={{ background: '#161616', borderBottom: '1px solid #2a2a2a' }}>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-600 uppercase tracking-wider">Nome</th>
@@ -242,6 +243,7 @@ export default function ConfeccoesPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

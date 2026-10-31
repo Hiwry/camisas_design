@@ -719,7 +719,7 @@ export default function LandingPage() {
             {PLANOS.map((plano, i) => (
               <div
                 key={i}
-                className={`relative rounded-3xl p-8 flex flex-col justify-between transition-all ${
+                className={`relative rounded-3xl p-5 sm:p-8 flex flex-col justify-between transition-all ${
                   plano.destaque
                     ? 'bg-[#15151a] border-2 border-[#d4a020] shadow-[0_0_40px_rgba(212,160,32,0.18)] lg:-translate-y-2'
                     : 'bg-[#111114] border border-zinc-800'

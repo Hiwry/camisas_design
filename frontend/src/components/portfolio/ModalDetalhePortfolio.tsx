@@ -93,13 +93,13 @@ export default function ModalDetalhePortfolio({
         }}
       >
         {/* Barra superior de ações */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 bg-zinc-900/60 z-10">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#d4a020]/15 text-[#d4a020] border border-[#d4a020]/30">
+        <div className="flex items-center justify-between px-3.5 sm:px-5 py-3 border-b border-zinc-800 bg-zinc-900/60 z-10 gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 sm:px-2.5 py-0.5 rounded-full bg-[#d4a020]/15 text-[#d4a020] border border-[#d4a020]/30">
               {item.categoria}
             </span>
             {item.servico && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 sm:px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
                 {item.servico === 'sublimacao'
                   ? 'Sublimação Total'
                   : item.servico === 'serigrafia'
@@ -118,13 +118,13 @@ export default function ModalDetalhePortfolio({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={handleCurtir}
               disabled={jaCurtiu}
               className={clsx(
-                'flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all border',
+                'flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all border',
                 jaCurtiu
                   ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
                   : 'bg-zinc-800 text-zinc-300 hover:text-white border-zinc-700 hover:bg-zinc-700'
@@ -160,7 +160,7 @@ export default function ModalDetalhePortfolio({
         {/* Conteúdo em 2 colunas com scroll */}
         <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-0 divide-y md:divide-y-0 md:divide-x divide-zinc-800">
           {/* Coluna da Imagem e Galeria (7 cols) */}
-          <div className="md:col-span-7 p-5 flex flex-col justify-between bg-black/40">
+          <div className="md:col-span-7 p-3.5 sm:p-5 flex flex-col justify-between bg-black/40">
             {/* Visualizador Principal */}
             <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800/80 group">
               <img
@@ -216,7 +216,7 @@ export default function ModalDetalhePortfolio({
           </div>
 
           {/* Coluna de Informações e Briefing (5 cols) */}
-          <div className="md:col-span-5 p-5 md:p-6 flex flex-col justify-between space-y-6">
+          <div className="md:col-span-5 p-4 sm:p-5 md:p-6 flex flex-col justify-between space-y-5 sm:space-y-6">
             <div className="space-y-4">
               <div>
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight leading-tight">

@@ -72,6 +72,27 @@ class WhatsAppAIService
     }
 
     /**
+     * Normaliza número brasileiro removendo DDI 55 e nono dígito para comparações robustas
+     */
+    public function normalizarNumeroBR(string $numero): string
+    {
+        $d = preg_replace('/\D/', '', $numero);
+        if (empty($d)) {
+            return '';
+        }
+
+        if (str_starts_with($d, '55') && strlen($d) >= 12) {
+            $d = substr($d, 2);
+        }
+
+        if (strlen($d) === 11 && $d[2] === '9') {
+            return substr($d, 0, 2) . substr($d, 3);
+        }
+
+        return $d;
+    }
+
+    /**
      * Verifica se o número é o administrador do sistema
      */
     public function isAdmin(string $numero): bool
@@ -85,6 +106,7 @@ class WhatsAppAIService
         }
 
         $numeroNorm = $this->normalizarNumeroBR($numero);
+        $numeroVars = $this->gerarVariacoesNumero($numero);
         $admins = explode(',', $this->adminNumber);
 
         foreach ($admins as $admin) {
@@ -92,6 +114,11 @@ class WhatsAppAIService
             if (empty($adminClean)) continue;
 
             if ($numeroNorm === $this->normalizarNumeroBR($adminClean)) {
+                return true;
+            }
+
+            $adminVars = $this->gerarVariacoesNumero($adminClean);
+            if (!empty(array_intersect($numeroVars, $adminVars))) {
                 return true;
             }
         }
@@ -957,6 +984,9 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                 ]);
             }
 
+            $slaHoras = Confeccao::PLANOS[$confeccao->plano]['sla_horas'] ?? 48;
+            $prazoCalculado = now()->addHours($slaHoras);
+
             try {
                 $pedido = Pedido::create([
                     'confeccao_id'     => $confeccao->id,
@@ -964,12 +994,17 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                     'tipo_impressao'   => $estado['tipo_impressao'] ?? 'sublimacao',
                     'status'           => 'aguardando_briefing',
                     'observacoes'      => $obs,
+                    'prazo'            => $prazoCalculado,
                     'cliente_whatsapp' => $numero,
+                    'whatsapp_cliente' => $numero,
                     'cliente_nome'     => $remetente['nome'] ?? 'Cliente WhatsApp',
+                    'nome_cliente'     => $remetente['nome'] ?? 'Cliente WhatsApp',
                 ]);
 
                 // Incrementa contador da confecção
-                $confeccao->incrementarArteUsada();
+                if (method_exists($confeccao, 'incrementarArteUsada')) {
+                    $confeccao->incrementarArteUsada();
+                }
 
                 Cache::forget($stateKey);
             } catch (\Throwable $e) {
@@ -1009,12 +1044,15 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                 }
             }
 
+            $prazoTxt = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : null;
+
             return "✅ *Pedido Criado com Sucesso!*\n"
                 . "━━━━━━━━━━━━━━━━━━━━━\n\n"
                 . "📋 *Resumo:*\n"
                 . "• *Pedido:* #{$pedido->id}\n"
                 . "• *Título:* {$pedido->titulo}\n"
                 . "• *Processo:* {$tipoNome}\n"
+                . ($prazoTxt ? "• *Prazo Estimado:* {$prazoTxt}\n" : "")
                 . "• *Status:* 📝 Aguardando Briefing / Produção\n"
                 . ($obs ? "• *Obs:* {$obs}\n" : "")
                 . "\n🎨 Nossa equipe já foi acionada para iniciar sua arte!\n\n"

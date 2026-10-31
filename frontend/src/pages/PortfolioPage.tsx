@@ -158,29 +158,29 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
       {/* ── Topbar Pública (Apenas exibida na rota pública sem sidebar) ── */}
       {isPublic && (
         <header
-          className="border-b px-6 sm:px-10 py-4 z-20 sticky top-0 backdrop-blur-md"
+          className="border-b px-4 sm:px-6 md:px-10 py-3 sm:py-4 z-20 sticky top-0 backdrop-blur-md"
           style={{ background: '#111111ee', borderColor: '#1e1e1e' }}
         >
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             {/* Logo Camiseta Design */}
-            <Link to="/portfolio" className="flex items-center gap-2.5">
+            <Link to="/portfolio" className="flex items-center gap-2 flex-shrink-0">
               <img
                 src="/logo.svg"
                 alt="Camiseta Design"
-                className="h-8 w-auto"
+                className="h-7 sm:h-8 w-auto"
                 onError={(e) => {
                   const i = e.currentTarget
                   i.onerror = null
                   i.src = '/logo.png'
                 }}
               />
-              <span className="font-extrabold text-base tracking-tight text-white">
+              <span className="font-extrabold text-sm sm:text-base tracking-tight text-white">
                 Camiseta<span className="text-[#d4a020]">Design</span>
               </span>
             </Link>
 
             {/* Links da direita */}
-            <nav className="flex items-center gap-5 sm:gap-7 text-xs font-medium text-zinc-400">
+            <nav className="flex items-center gap-2.5 sm:gap-6 text-xs font-medium text-zinc-400 overflow-x-auto scrollbar-none py-1">
               <button
                 type="button"
                 onClick={() => {
@@ -188,7 +188,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                   setServicoAtivo('todos')
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
-                className="text-white font-semibold transition-colors hover:text-white"
+                className="text-white font-semibold transition-colors hover:text-white whitespace-nowrap"
               >
                 Portfólio
               </button>
@@ -196,7 +196,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
               <button
                 type="button"
                 onClick={() => setShowSobreModal(true)}
-                className="hover:text-white transition-colors"
+                className="hover:text-white transition-colors whitespace-nowrap hidden xs:inline-block"
               >
                 Sobre
               </button>
@@ -204,7 +204,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
               <button
                 type="button"
                 onClick={handleContatoWhatsApp}
-                className="flex items-center gap-1 text-zinc-300 hover:text-[#d4a020] transition-colors font-semibold"
+                className="flex items-center gap-1 text-zinc-300 hover:text-[#d4a020] transition-colors font-semibold whitespace-nowrap"
               >
                 <span>WhatsApp</span>
                 <ArrowUpRight className="w-3.5 h-3.5 text-[#d4a020]" />
@@ -213,19 +213,19 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
               {user ? (
                 <Link
                   to="/pedidos"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all"
+                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all whitespace-nowrap flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)' }}
                 >
-                  <span>Acessar Painel</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>Painel</span>
+                  <ArrowUpRight className="w-3 h-3" />
                 </Link>
               ) : (
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black transition-all"
+                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold text-black transition-all whitespace-nowrap flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)' }}
                 >
-                  <span>Área do Cliente</span>
+                  <span>Entrar</span>
                 </Link>
               )}
             </nav>
@@ -234,9 +234,9 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
       )}
 
       {/* ── Conteúdo Principal do Portfólio ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8">
         {/* ── Headline & Filtros por Segmento ── */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-[#1e1e1e]">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 pb-2 border-b border-[#1e1e1e]">
           {/* Título & Subtítulo */}
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -251,20 +251,20 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                 Portfólio Oficial · Camiseta Design
               </span>
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-none">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
               Artes que vestem identidade<span className="text-[#d4a020]">.</span>
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 mt-2 font-medium tracking-wide">
+            <p className="text-xs sm:text-sm text-zinc-400 mt-1.5 font-medium tracking-wide">
               Camisas • Uniformes • Estampas
             </p>
           </div>
 
           {/* Filtros por Segmento com Underline Dourado */}
-          <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium self-start md:self-auto overflow-x-auto pb-1">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-medium self-stretch md:self-auto overflow-x-auto pb-1 scrollbar-none">
             {SEGMENTOS_FILTRO.map((cat, idx) => {
               const ativo = categoriaAtiva === cat.id
               return (
-                <div key={cat.id} className="flex items-center gap-4 sm:gap-6">
+                <div key={cat.id} className="flex items-center gap-3 sm:gap-6">
                   {idx > 0 && <span className="text-zinc-700 select-none">|</span>}
                   <button
                     type="button"
@@ -293,7 +293,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                   setItemParaEditar(null)
                   setShowModalGerenciar(true)
                 }}
-                className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all hover:opacity-90"
+                className="ml-auto sm:ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)' }}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -305,10 +305,10 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
 
         {/* ── Filtro por Categoria de Serviço / Técnica (Sublimação, Serigrafia, Bordado, Logos) ── */}
         <div
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border"
           style={{ background: '#111111', borderColor: '#1e1e1e' }}
         >
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mr-1 flex items-center gap-1.5 flex-shrink-0">
               <Layers className="w-3.5 h-3.5 text-[#d4a020]" />
               Serviço:
@@ -322,7 +322,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                   type="button"
                   onClick={() => setServicoAtivo(srv.id)}
                   className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border flex-shrink-0',
                     ativo
                       ? 'text-black font-bold shadow-md'
                       : 'bg-[#181818] text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
@@ -354,15 +354,15 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
           </div>
 
           {/* Campo de Busca Rápida & Reset */}
-          <div className="relative self-start sm:self-auto flex items-center gap-2">
-            <div className="relative">
+          <div className="relative flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-60">
               <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por fardamento, time, tecido..."
-                className="input pl-8 pr-7 py-1 text-xs w-48 sm:w-60 bg-[#161616] border-zinc-800 rounded-xl text-zinc-300"
+                placeholder="Buscar fardamento, time, tecido..."
+                className="input pl-8 pr-7 py-1 text-xs w-full bg-[#161616] border-zinc-800 rounded-xl text-zinc-300"
               />
               {busca && (
                 <button
@@ -382,7 +382,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                   setServicoAtivo('todos')
                   setBusca('')
                 }}
-                className="text-[11px] text-[#d4a020] hover:underline whitespace-nowrap font-medium"
+                className="text-[11px] text-[#d4a020] hover:underline whitespace-nowrap font-medium flex-shrink-0"
               >
                 Limpar filtros
               </button>
@@ -649,7 +649,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
 
         {/* ── Banner de Contato / Orçamento na Base ── */}
         <div
-          className="mt-12 rounded-3xl p-8 sm:p-10 border flex flex-col md:flex-row md:items-center justify-between gap-6"
+          className="mt-8 sm:mt-12 rounded-3xl p-5 sm:p-8 md:p-10 border flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6"
           style={{
             background: 'linear-gradient(135deg, #121212 0%, #171510 100%)',
             borderColor: '#262626',
@@ -662,7 +662,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
                 Criação Personalizada
               </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
               Gostou dos modelos? Vamos criar o seu fardamento exclusivo.
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
@@ -673,7 +673,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
           <button
             type="button"
             onClick={handleContatoWhatsApp}
-            className="self-start md:self-auto py-3 px-6 rounded-xl text-xs font-bold flex items-center gap-2 text-black shadow-lg transition-all hover:scale-[1.02]"
+            className="w-full sm:w-auto justify-center py-3 px-6 rounded-xl text-xs font-bold flex items-center gap-2 text-black shadow-lg transition-all hover:scale-[1.02]"
             style={{
               background: 'linear-gradient(135deg,#d4a020,#e8b430)',
               boxShadow: '0 4px 20px rgba(212,160,32,0.3)',

@@ -153,27 +153,27 @@ export default function ModalGerenciarPortfolio({
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/60">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800 bg-zinc-900/60">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#d4a020]" />
               {isEditing ? 'Editar Trabalho do Portfólio' : 'Cadastrar Novo Trabalho no Portfólio'}
             </h2>
-            <p className="text-xs text-zinc-400">
+            <p className="text-[11px] sm:text-xs text-zinc-400">
               Publique fotos de camisas prontas, mockups 3D e amostras para seus clientes verem.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Formulário com scroll */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Título */}
             <div className="sm:col-span-2">

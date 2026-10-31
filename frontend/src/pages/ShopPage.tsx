@@ -116,13 +116,13 @@ export default function ShopPage() {
       : itens.filter((i) => i.categoria === categoriaFiltro)
 
   return (
-    <div className="min-h-full p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="min-h-full p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
       {/* ── Topo: Header & Navegação de Abas ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6 border-zinc-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5 sm:pb-6 border-zinc-800">
         <div>
           <div className="flex items-center gap-2.5 mb-1.5">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 background: 'linear-gradient(135deg, rgba(212,160,32,0.2), rgba(212,160,32,0.05))',
                 border: '1px solid rgba(212,160,32,0.3)',
@@ -130,7 +130,7 @@ export default function ShopPage() {
             >
               <ShoppingBag className="w-5 h-5 text-[#d4a020]" />
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-tight">
               Shop de Itens e Serviços Avulsos
             </h1>
           </div>
@@ -140,12 +140,12 @@ export default function ShopPage() {
         </div>
 
         {/* Abas */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-start md:self-auto">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-stretch md:self-auto overflow-x-auto max-w-full scrollbar-none">
           <button
             type="button"
             onClick={() => setAbaAtiva('catalogo')}
             className={clsx(
-              'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0',
               abaAtiva === 'catalogo'
                 ? 'bg-[#d4a020] text-black shadow-md shadow-[#d4a020]/20'
                 : 'text-zinc-400 hover:text-white'
@@ -158,7 +158,7 @@ export default function ShopPage() {
             type="button"
             onClick={() => setAbaAtiva('historico')}
             className={clsx(
-              'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0',
               abaAtiva === 'historico'
                 ? 'bg-[#d4a020] text-black shadow-md shadow-[#d4a020]/20'
                 : 'text-zinc-400 hover:text-white'
@@ -173,7 +173,7 @@ export default function ShopPage() {
                 type="button"
                 onClick={() => setAbaAtiva('admin')}
                 className={clsx(
-                  'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  'flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0',
                   abaAtiva === 'admin'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'text-zinc-400 hover:text-white'
@@ -184,7 +184,7 @@ export default function ShopPage() {
               </button>
               <Link
                 to="/admin/shop/produtos"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#d4a020]/15 hover:bg-[#d4a020]/25 text-[#d4a020] border border-[#d4a020]/30 transition-all hover:scale-[1.02]"
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#d4a020]/15 hover:bg-[#d4a020]/25 text-[#d4a020] border border-[#d4a020]/30 transition-all hover:scale-[1.02] whitespace-nowrap flex-shrink-0"
                 title="Cadastrar, editar e organizar produtos, combos e preços"
               >
                 <Package className="w-3.5 h-3.5" />
@@ -515,82 +515,84 @@ export default function ShopPage() {
             </div>
           ) : (
             <div className="rounded-2xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
-                  <tr>
-                    <th className="px-5 py-3.5 font-semibold">Item Adquirido</th>
-                    <th className="px-5 py-3.5 font-semibold">Categoria</th>
-                    <th className="px-5 py-3.5 font-semibold">Valor</th>
-                    <th className="px-5 py-3.5 font-semibold">Data</th>
-                    <th className="px-5 py-3.5 font-semibold">Status</th>
-                    <th className="px-5 py-3.5 font-semibold text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/80">
-                  {meusPedidos.map((ped) => {
-                    const statusPago = ped.status === 'pago' || ped.status === 'concluido'
-                    return (
-                      <tr key={ped.id} className="hover:bg-zinc-800/30 transition-colors">
-                        <td className="px-5 py-4 font-bold text-white">
-                          <div className="flex items-center gap-2">
-                            <span>{ped.item_nome}</span>
-                            {ped.quantidade > 1 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                                {ped.quantidade}x
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left text-xs min-w-[580px]">
+                  <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
+                    <tr>
+                      <th className="px-5 py-3.5 font-semibold">Item Adquirido</th>
+                      <th className="px-5 py-3.5 font-semibold">Categoria</th>
+                      <th className="px-5 py-3.5 font-semibold">Valor</th>
+                      <th className="px-5 py-3.5 font-semibold">Data</th>
+                      <th className="px-5 py-3.5 font-semibold">Status</th>
+                      <th className="px-5 py-3.5 font-semibold text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/80">
+                    {meusPedidos.map((ped) => {
+                      const statusPago = ped.status === 'pago' || ped.status === 'concluido'
+                      return (
+                        <tr key={ped.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-5 py-4 font-bold text-white">
+                            <div className="flex items-center gap-2">
+                              <span>{ped.item_nome}</span>
+                              {ped.quantidade > 1 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                                  {ped.quantidade}x
+                                </span>
+                              )}
+                            </div>
+                            {ped.detalhes && (
+                              <span className="text-[10px] text-zinc-400 block mt-0.5 max-w-md truncate">
+                                {ped.detalhes}
                               </span>
                             )}
-                          </div>
-                          {ped.detalhes && (
-                            <span className="text-[10px] text-zinc-400 block mt-0.5 max-w-md truncate">
-                              {ped.detalhes}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-zinc-400 uppercase text-[10px] font-semibold">
-                          {ped.categoria}
-                        </td>
-                        <td className="px-5 py-4 font-bold text-white">
-                          R$ {Number(ped.valor_total).toFixed(2).replace('.', ',')}
-                        </td>
-                        <td className="px-5 py-4 text-zinc-400">
-                          {new Date(ped.created_at).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="px-5 py-4">
-                          {statusPago ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              <CheckCircle2 className="w-3 h-3" /> Liberado
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              <Clock className="w-3 h-3" /> Aguardando Pix
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {!statusPago && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const found = itens.find((i) => i.id === ped.item_id)
-                                if (found) setItemSelecionado(found)
-                              }}
-                              className="text-[11px] font-bold text-[#d4a020] hover:underline"
-                            >
-                              Pagar Pix
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-5 py-4 text-zinc-400 uppercase text-[10px] font-semibold">
+                            {ped.categoria}
+                          </td>
+                          <td className="px-5 py-4 font-bold text-white">
+                            R$ {Number(ped.valor_total).toFixed(2).replace('.', ',')}
+                          </td>
+                          <td className="px-5 py-4 text-zinc-400">
+                            {new Date(ped.created_at).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="px-5 py-4">
+                            {statusPago ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <CheckCircle2 className="w-3 h-3" /> Liberado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                <Clock className="w-3 h-3" /> Aguardando Pix
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            {!statusPago && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const found = itens.find((i) => i.id === ped.item_id)
+                                  if (found) setItemSelecionado(found)
+                                }}
+                                className="text-[11px] font-bold text-[#d4a020] hover:underline"
+                              >
+                                Pagar Pix
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -634,95 +636,97 @@ export default function ShopPage() {
             </div>
           ) : (
             <div className="rounded-2xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
-                  <tr>
-                    <th className="px-5 py-3.5 font-semibold">ID</th>
-                    <th className="px-5 py-3.5 font-semibold">Confecção / Usuário</th>
-                    <th className="px-5 py-3.5 font-semibold">Item & Qtd</th>
-                    <th className="px-5 py-3.5 font-semibold">Valor</th>
-                    <th className="px-5 py-3.5 font-semibold">Data</th>
-                    <th className="px-5 py-3.5 font-semibold">Status</th>
-                    <th className="px-5 py-3.5 font-semibold text-right">Ação Admin</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/80">
-                  {adminPedidosData.data.map((ped: ShopPedido) => (
-                    <tr key={ped.id} className="hover:bg-zinc-800/30 transition-colors">
-                      <td className="px-5 py-4 font-mono text-zinc-400">#{ped.id}</td>
-                      <td className="px-5 py-4">
-                        <span className="font-bold text-white block">
-                          {ped.confeccao?.nome || ped.user?.name || 'Cliente'}
-                        </span>
-                        <span className="text-[10px] text-zinc-500">{ped.user?.email}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="font-semibold text-zinc-200 block">{ped.item_nome}</span>
-                        {ped.detalhes && (
-                          <span className="text-[10px] text-zinc-400 block max-w-xs truncate">
-                            {ped.detalhes}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 font-bold text-white">
-                        R$ {Number(ped.valor_total).toFixed(2).replace('.', ',')}
-                      </td>
-                      <td className="px-5 py-4 text-zinc-400">
-                        {new Date(ped.created_at).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={clsx(
-                            'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border',
-                            ped.status === 'concluido'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : ped.status === 'pago'
-                              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          )}
-                        >
-                          {ped.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-right space-x-1.5">
-                        {ped.status === 'pendente' && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              atualizarStatusMutation.mutate({
-                                pedidoId: ped.id,
-                                status: 'pago',
-                              })
-                            }
-                            className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
-                          >
-                            Aprovar Pix
-                          </button>
-                        )}
-                        {ped.status === 'pago' && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              atualizarStatusMutation.mutate({
-                                pedidoId: ped.id,
-                                status: 'concluido',
-                              })
-                            }
-                            className="text-[10px] font-bold px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
-                          >
-                            Concluir
-                          </button>
-                        )}
-                      </td>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left text-xs min-w-[700px]">
+                  <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
+                    <tr>
+                      <th className="px-5 py-3.5 font-semibold">ID</th>
+                      <th className="px-5 py-3.5 font-semibold">Confecção / Usuário</th>
+                      <th className="px-5 py-3.5 font-semibold">Item & Qtd</th>
+                      <th className="px-5 py-3.5 font-semibold">Valor</th>
+                      <th className="px-5 py-3.5 font-semibold">Data</th>
+                      <th className="px-5 py-3.5 font-semibold">Status</th>
+                      <th className="px-5 py-3.5 font-semibold text-right">Ação Admin</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/80">
+                    {adminPedidosData.data.map((ped: ShopPedido) => (
+                      <tr key={ped.id} className="hover:bg-zinc-800/30 transition-colors">
+                        <td className="px-5 py-4 font-mono text-zinc-400">#{ped.id}</td>
+                        <td className="px-5 py-4">
+                          <span className="font-bold text-white block">
+                            {ped.confeccao?.nome || ped.user?.name || 'Cliente'}
+                          </span>
+                          <span className="text-[10px] text-zinc-500">{ped.user?.email}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="font-semibold text-zinc-200 block">{ped.item_nome}</span>
+                          {ped.detalhes && (
+                            <span className="text-[10px] text-zinc-400 block max-w-xs truncate">
+                              {ped.detalhes}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 font-bold text-white">
+                          R$ {Number(ped.valor_total).toFixed(2).replace('.', ',')}
+                        </td>
+                        <td className="px-5 py-4 text-zinc-400">
+                          {new Date(ped.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={clsx(
+                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border',
+                              ped.status === 'concluido'
+                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                               : ped.status === 'pago'
+                               ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                               : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            )}
+                          >
+                            {ped.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right space-x-1.5">
+                          {ped.status === 'pendente' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                atualizarStatusMutation.mutate({
+                                  pedidoId: ped.id,
+                                  status: 'pago',
+                                })
+                              }
+                              className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+                            >
+                              Aprovar Pix
+                            </button>
+                          )}
+                          {ped.status === 'pago' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                atualizarStatusMutation.mutate({
+                                  pedidoId: ped.id,
+                                  status: 'concluido',
+                                })
+                              }
+                              className="text-[10px] font-bold px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                            >
+                              Concluir
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

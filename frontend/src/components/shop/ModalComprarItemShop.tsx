@@ -126,7 +126,7 @@ export default function ModalComprarItemShop({ item, onClose, onSuccess }: Props
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
@@ -141,12 +141,12 @@ export default function ModalComprarItemShop({ item, onClose, onSuccess }: Props
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0"
+          className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b flex-shrink-0"
           style={{ background: '#141414', borderColor: '#222' }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 background: 'rgba(212,160,32,0.15)',
                 border: '1px solid rgba(212,160,32,0.3)',
@@ -154,8 +154,8 @@ export default function ModalComprarItemShop({ item, onClose, onSuccess }: Props
             >
               <ItemIcon className="w-4 h-4 text-[#d4a020]" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-white leading-tight">{item.nome}</h2>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-white leading-tight truncate">{item.nome}</h2>
               <p className="text-[11px] text-zinc-500 leading-tight mt-0.5">
                 {item.entrega_sla} · R$ {item.valor.toFixed(2).replace('.', ',')}
               </p>
@@ -163,14 +163,14 @@ export default function ModalComprarItemShop({ item, onClose, onSuccess }: Props
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-all"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-all flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Conteúdo */}
-        <div className="p-6 overflow-y-auto max-h-[82vh] space-y-5">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[82vh] space-y-4 sm:space-y-5">
           {etapa === 'detalhes' && (
             <>
               {/* Card de Resumo do Item */}

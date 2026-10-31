@@ -74,7 +74,7 @@ export default function WhatsAppPage() {
   const semConfig   = status?.configurado === false
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-[fadeIn_0.2s_ease-out]">
+    <div className="p-3.5 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-4 sm:space-y-6 animate-[fadeIn_0.2s_ease-out]">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-3">

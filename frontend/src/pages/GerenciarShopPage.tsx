@@ -100,13 +100,13 @@ export default function GerenciarShopPage() {
   const totalCombos = itens.filter((i) => i.categoria === 'combos' || i.categoria === 'artes').length
 
   return (
-    <div className="min-h-full p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="min-h-full p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
       {/* ── Header Principal ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6 border-zinc-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5 sm:pb-6 border-zinc-800">
         <div>
           <div className="flex items-center gap-2.5 mb-1.5">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 background: 'linear-gradient(135deg, rgba(212,160,32,0.2), rgba(212,160,32,0.05))',
                 border: '1px solid rgba(212,160,32,0.3)',
@@ -114,7 +114,7 @@ export default function GerenciarShopPage() {
             >
               <ShoppingBag className="w-5 h-5 text-[#d4a020]" />
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-tight">
               Gerenciar Produtos & Combos do Shop
             </h1>
           </div>
@@ -123,24 +123,24 @@ export default function GerenciarShopPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-stretch md:self-auto">
           <Link
             to="/shop"
-            className="btn-secondary px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5"
+            className="btn-secondary flex-1 sm:flex-none justify-center px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5"
             title="Abrir o Shop na visão do cliente"
           >
             <Eye className="w-3.5 h-3.5" />
-            Ver Shop do Cliente
+            <span>Ver Shop</span>
             <ArrowUpRight className="w-3 h-3 text-zinc-500" />
           </Link>
 
           <button
             type="button"
             onClick={handleNovo}
-            className="btn-primary px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-[#d4a020]/20"
+            className="btn-primary flex-1 sm:flex-none justify-center px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-[#d4a020]/20"
           >
             <Plus className="w-4 h-4" />
-            Novo Produto / Combo
+            <span>Novo Produto</span>
           </button>
         </div>
       </div>

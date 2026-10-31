@@ -243,7 +243,8 @@ export default function PedidosPage() {
               <p className="text-sm">Nenhum pedido encontrado.</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr style={{ background: '#161616', borderBottom: '1px solid #2a2a2a' }}>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-600 uppercase tracking-wider">Pedido</th>
@@ -323,6 +324,7 @@ export default function PedidosPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -396,7 +398,7 @@ export default function PedidosPage() {
                 <option value="serigrafia">Serigrafia</option>
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="label">Nome do cliente</label>
                 <input name="nome_cliente" className="input" placeholder="Opcional" />
@@ -628,7 +630,7 @@ export function DarkModal({ title, children, onClose }: {
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -636,13 +638,13 @@ export function DarkModal({ title, children, onClose }: {
         className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl animate-[slideUp_0.2s_ease-out]"
         style={{ background: '#141414', border: '1px solid #2a2a2a', boxShadow: '0 24px 64px rgba(0,0,0,0.8)' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: '#2a2a2a' }}>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b" style={{ borderColor: '#2a2a2a' }}>
           <h3 className="text-sm font-semibold text-white">{title}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors p-1 rounded-lg hover:bg-zinc-800">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   )

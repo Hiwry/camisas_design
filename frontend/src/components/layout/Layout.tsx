@@ -108,11 +108,11 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
       {/* ── Sidebar (Retrátil no desktop e Drawer no mobile) ── */}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-300 md:static md:z-auto",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-300 md:static md:z-auto w-64 max-w-[85vw]",
           // Mobile state
           mobileOpen ? "translate-x-0 shadow-2xl shadow-black" : "-translate-x-full md:translate-x-0",
           // Desktop expanded vs collapsed
-          collapsed ? "md:w-16" : "w-60"
+          collapsed ? "md:w-16" : "md:w-60"
         )}
         style={{ background: '#111111', borderColor: '#1e1e1e' }}
       >

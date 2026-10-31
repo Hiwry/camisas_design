@@ -80,26 +80,26 @@ export default function AprovacaoPublica() {
 
       {/* ── Header ── */}
       <header
-        className="border-b px-6 py-4 sticky top-0 z-10"
+        className="border-b px-4 sm:px-6 py-3.5 sm:py-4 sticky top-0 z-10"
         style={{ background: 'rgba(10,10,10,0.9)', backdropFilter: 'blur(12px)', borderColor: '#1e1e1e' }}
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)', boxShadow: '0 2px 12px rgba(212,160,32,0.3)' }}
             >
-              <Shirt className="w-5 h-5" style={{ color: '#0a0a0a' }} />
+              <Shirt className="w-4 sm:w-5 h-4 sm:h-5" style={{ color: '#0a0a0a' }} />
             </div>
             <div>
-              <p className="text-xs text-zinc-600 leading-none mb-0.5">Aprovação de Arte</p>
-              <p className="text-sm font-semibold text-white leading-none">{pedido.confeccao.nome}</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 leading-none mb-0.5">Aprovação de Arte</p>
+              <p className="text-xs sm:text-sm font-semibold text-white leading-none">{pedido.confeccao.nome}</p>
             </div>
           </div>
 
           {jaFinalizado && (
             <span
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full"
               style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}
             >
               <CheckCircle2 className="w-3.5 h-3.5" /> Arte Aprovada
@@ -108,10 +108,10 @@ export default function AprovacaoPublica() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto p-6 space-y-5">
+      <div className="max-w-4xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5">
 
         {/* ── Info do pedido ── */}
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-lg font-bold text-white">{pedido.titulo}</h1>
@@ -186,12 +186,12 @@ export default function AprovacaoPublica() {
                 </div>
               )}
 
-              <div className="flex items-center justify-center min-h-[480px] p-2" style={{ background: '#080808' }}>
+              <div className="flex items-center justify-center min-h-[280px] sm:min-h-[480px] p-2" style={{ background: '#080808' }}>
                 {previewSrc ? (
                   <img
                     src={previewSrc}
                     alt="Arte para aprovação"
-                    className="max-h-[560px] max-w-full object-contain rounded-lg"
+                    className="max-h-[65vh] sm:max-h-[560px] max-w-full object-contain rounded-lg"
                   />
                 ) : arte_ativa.arquivo_tipo === 'pdf' ? (
                   <iframe

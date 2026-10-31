@@ -126,22 +126,22 @@ export default function RevisaoArteModal({ pedidoId, arteAtiva, todasArtes, onCl
 
         {/* ── Header ── */}
         <div
-          className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0"
+          className="flex flex-wrap items-center justify-between px-3.5 sm:px-5 py-3 sm:py-4 border-b flex-shrink-0 gap-2"
           style={{ background: '#141414', borderColor: '#242424' }}
         >
           <div className="flex items-center gap-2.5">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(212,160,32,0.12)', border: '1px solid rgba(212,160,32,0.2)' }}
             >
               <Sparkles className="w-4 h-4" style={{ color: '#d4a020' }} />
             </div>
             <div>
               <h2 className="text-sm font-bold text-white">Revisão com IA</h2>
-              <p className="text-[11px] text-zinc-600">Claude analisa sua arte automaticamente</p>
+              <p className="text-[11px] text-zinc-500">IA analisa sua arte automaticamente</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs"
               style={{
@@ -159,7 +159,7 @@ export default function RevisaoArteModal({ pedidoId, arteAtiva, todasArtes, onCl
               <button
                 type="button"
                 onClick={() => setShowComprarModal(true)}
-                className="btn-primary text-[11px] px-2.5 py-1"
+                className="btn-primary text-[11px] px-2.5 py-1 whitespace-nowrap"
               >
                 + Comprar (R$ 5)
               </button>
@@ -167,7 +167,7 @@ export default function RevisaoArteModal({ pedidoId, arteAtiva, todasArtes, onCl
 
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-all ml-1"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-all ml-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -179,7 +179,7 @@ export default function RevisaoArteModal({ pedidoId, arteAtiva, todasArtes, onCl
 
           {/* ── Configuração (antes de analisar) ── */}
           {!resultado && !revisarMutation.isPending && (
-            <div className="p-5 space-y-5">
+            <div className="p-3.5 sm:p-5 space-y-4 sm:space-y-5">
 
               {/* Arte que será analisada */}
               <div

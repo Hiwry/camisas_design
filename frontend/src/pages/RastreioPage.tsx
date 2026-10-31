@@ -171,7 +171,7 @@ export default function RastreioPage() {
       </header>
 
       {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-5xl mx-auto px-4 py-8 sm:py-12 w-full space-y-8">
+      <main className="flex-1 max-w-5xl mx-auto px-3.5 sm:px-4 py-6 sm:py-12 w-full space-y-6 sm:space-y-8">
         
         {/* Hero de Busca */}
         <div className="text-center max-w-2xl mx-auto space-y-3">
@@ -181,30 +181,30 @@ export default function RastreioPage() {
           <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
             Consulte seus Pedidos e Artes
           </h1>
-          <p className="text-sm sm:text-base text-zinc-400">
+          <p className="text-xs sm:text-base text-zinc-400">
             Digite seu WhatsApp ou telefone cadastrado para visualizar o andamento dos seus pedidos, conferir prévias e aprovar modelos em 1 clique.
           </p>
 
           {/* Form de Consulta */}
-          <form onSubmit={handleBuscar} className="pt-4 max-w-md mx-auto">
+          <form onSubmit={handleBuscar} className="pt-3 sm:pt-4 max-w-md mx-auto">
             <div className="relative flex items-center">
               <input
                 type="tel"
                 value={telefone}
                 onChange={handleTelefoneChange}
                 placeholder="(81) 98888-7777"
-                className="w-full bg-[#141417] border-2 border-zinc-800 focus:border-[#d4a020] rounded-xl px-4 py-3.5 text-base sm:text-lg text-white placeholder-zinc-600 focus:outline-none transition-all shadow-inner font-mono"
+                className="w-full bg-[#141417] border-2 border-zinc-800 focus:border-[#d4a020] rounded-xl pl-3.5 pr-28 sm:pr-32 py-3 sm:py-3.5 text-sm sm:text-base text-white placeholder-zinc-600 focus:outline-none transition-all shadow-inner font-mono"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="absolute right-2 px-4 py-2.5 rounded-lg font-bold text-xs sm:text-sm bg-[#d4a020] hover:bg-[#b88610] text-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-md shadow-[#d4a020]/20"
+                className="absolute right-1.5 sm:right-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-lg font-bold text-xs sm:text-sm bg-[#d4a020] hover:bg-[#b88610] text-black transition-all flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 shadow-md shadow-[#d4a020]/20"
               >
                 {loading ? (
                   <span className="inline-block w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Search className="w-4 h-4" />
+                    <Search className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     <span>Rastrear</span>
                   </>
                 )}

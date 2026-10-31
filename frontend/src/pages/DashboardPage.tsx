@@ -66,7 +66,7 @@ export default function DashboardPage() {
     : 1
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-[fadeIn_0.2s_ease-out] max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-[fadeIn_0.2s_ease-out] max-w-7xl mx-auto">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-3">
@@ -136,7 +136,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
         {/* Por Status — ocupa 3 colunas */}
-        <div className="lg:col-span-3 card p-6">
+        <div className="lg:col-span-3 card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-white">Pedidos por Status</h2>
             <span className="text-xs text-zinc-600">{total_geral} total</span>
@@ -196,7 +196,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Por Confecção — ocupa 2 colunas */}
-        <div className="lg:col-span-2 card p-6">
+        <div className="lg:col-span-2 card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-white">Por Confecção</h2>
             <ChevronRight className="w-4 h-4 text-zinc-700" />
