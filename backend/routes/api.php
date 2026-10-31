@@ -22,6 +22,53 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+Route::get('/debug-storage', function () {
+    $path = request('path', 'pedidos/referencias/0LxIE4ij0XF52cXRvXjFUOsQBEfB4U1tthgO3Cep.png');
+
+    $storageApp = storage_path('app');
+    $allFiles = [];
+    try {
+        if (file_exists($storageApp)) {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($storageApp, \FilesystemIterator::SKIP_DOTS));
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                    $allFiles[] = str_replace(base_path(), '', $file->getPathname());
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        $allFiles = ['error' => $e->getMessage()];
+    }
+
+    $candidates = [
+        storage_path('app/public/' . $path),
+        storage_path('app/private/' . $path),
+        storage_path('app/' . $path),
+        public_path('storage/' . $path),
+    ];
+    $checkedCandidates = [];
+    foreach ($candidates as $c) {
+        $checkedCandidates[$c] = [
+            'exists'   => @file_exists($c),
+            'is_file'  => @is_file($c),
+            'readable' => @is_readable($c),
+        ];
+    }
+
+    return response()->json([
+        'requested_path'     => $path,
+        'base_path'          => base_path(),
+        'storage_path'       => storage_path(),
+        'public_path'        => public_path(),
+        'disk_default'       => config('filesystems.default'),
+        'disk_public_root'   => config('filesystems.disks.public.root'),
+        'symlink_exists'     => is_link(public_path('storage')),
+        'symlink_target'     => is_link(public_path('storage')) ? @readlink(public_path('storage')) : null,
+        'checked_candidates' => $checkedCandidates,
+        'files_in_storage'   => array_slice($allFiles, 0, 50),
+    ]);
+});
+
 // Rate limit: 10 tentativas por minuto por IP
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
