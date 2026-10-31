@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class WhatsAppAIService
@@ -69,6 +70,20 @@ class WhatsAppAIService
     {
         $this->wa = $wa;
         $this->adminNumber = config('services.evolution.admin_number', '');
+    }
+
+    private function hasColumnSafe(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = "{$table}.{$column}";
+        if (!isset($cache[$key])) {
+            try {
+                $cache[$key] = Schema::hasTable($table) && Schema::hasColumn($table, $column);
+            } catch (\Throwable $e) {
+                $cache[$key] = false;
+            }
+        }
+        return $cache[$key];
     }
 
     /**
@@ -151,10 +166,13 @@ class WhatsAppAIService
         $variants = $this->gerarVariacoesNumero($numero);
 
         // 1. Confecção cadastrada (mesmo sem login/senha)
-        $confeccao = Confeccao::where(function ($q) use ($variants) {
+        $temTelefone = $this->hasColumnSafe('confeccoes', 'telefone');
+        $confeccao = Confeccao::where(function ($q) use ($variants, $temTelefone) {
             foreach ($variants as $v) {
-                $q->orWhere('whatsapp', 'like', "%{$v}%")
-                  ->orWhere('telefone', 'like', "%{$v}%");
+                $q->orWhere('whatsapp', 'like', "%{$v}%");
+                if ($temTelefone) {
+                    $q->orWhere('telefone', 'like', "%{$v}%");
+                }
             }
         })->first();
 
@@ -168,10 +186,16 @@ class WhatsAppAIService
         }
 
         // 2. Cliente final com pedido registrado
-        $pedido = Pedido::where(function ($q) use ($variants) {
+        $hasWhatsappCliente = $this->hasColumnSafe('pedidos', 'whatsapp_cliente');
+        $hasClienteWhatsapp = $this->hasColumnSafe('pedidos', 'cliente_whatsapp');
+        $pedido = Pedido::where(function ($q) use ($variants, $hasWhatsappCliente, $hasClienteWhatsapp) {
             foreach ($variants as $v) {
-                $q->orWhere('whatsapp_cliente', 'like', "%{$v}%")
-                  ->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+                if ($hasClienteWhatsapp) {
+                    $q->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+                }
+                if ($hasWhatsappCliente) {
+                    $q->orWhere('whatsapp_cliente', 'like', "%{$v}%");
+                }
             }
         })->latest()->first();
 
@@ -974,32 +998,48 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                 $confeccao = Confeccao::where('ativo', true)->first() ?? Confeccao::first();
             }
             if (!$confeccao) {
-                $confeccao = Confeccao::create([
+                $dadosConf = [
                     'nome'          => 'Confecção Padrão',
-                    'telefone'      => $numero,
                     'whatsapp'      => $numero,
                     'plano'         => 'basico',
                     'limite_mensal' => 10,
                     'ativo'         => true,
-                ]);
+                ];
+                if ($this->hasColumnSafe('confeccoes', 'telefone')) {
+                    $dadosConf['telefone'] = $numero;
+                }
+                $confeccao = Confeccao::create($dadosConf);
             }
 
             $slaHoras = Confeccao::PLANOS[$confeccao->plano]['sla_horas'] ?? 48;
             $prazoCalculado = now()->addHours($slaHoras);
 
             try {
-                $pedido = Pedido::create([
-                    'confeccao_id'     => $confeccao->id,
-                    'titulo'           => $estado['titulo'] ?? 'Pedido via WhatsApp',
-                    'tipo_impressao'   => $estado['tipo_impressao'] ?? 'sublimacao',
-                    'status'           => 'aguardando_briefing',
-                    'observacoes'      => $obs,
-                    'prazo'            => $prazoCalculado,
-                    'cliente_whatsapp' => $numero,
-                    'whatsapp_cliente' => $numero,
-                    'cliente_nome'     => $remetente['nome'] ?? 'Cliente WhatsApp',
-                    'nome_cliente'     => $remetente['nome'] ?? 'Cliente WhatsApp',
-                ]);
+                $dadosPedido = [
+                    'confeccao_id'   => $confeccao->id,
+                    'titulo'         => $estado['titulo'] ?? 'Pedido via WhatsApp',
+                    'tipo_impressao' => $estado['tipo_impressao'] ?? 'sublimacao',
+                    'status'         => 'aguardando_briefing',
+                    'observacoes'    => $obs,
+                    'prazo'          => $prazoCalculado,
+                ];
+
+                if ($this->hasColumnSafe('pedidos', 'cliente_whatsapp')) {
+                    $dadosPedido['cliente_whatsapp'] = $numero;
+                }
+                if ($this->hasColumnSafe('pedidos', 'whatsapp_cliente')) {
+                    $dadosPedido['whatsapp_cliente'] = $numero;
+                }
+
+                $nomeCliente = $remetente['nome'] ?? 'Cliente WhatsApp';
+                if ($this->hasColumnSafe('pedidos', 'cliente_nome')) {
+                    $dadosPedido['cliente_nome'] = $nomeCliente;
+                }
+                if ($this->hasColumnSafe('pedidos', 'nome_cliente')) {
+                    $dadosPedido['nome_cliente'] = $nomeCliente;
+                }
+
+                $pedido = Pedido::create($dadosPedido);
 
                 // Incrementa contador da confecção
                 if (method_exists($confeccao, 'incrementarArteUsada')) {
@@ -1115,10 +1155,17 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
     {
         $variants = $this->gerarVariacoesNumero($numero);
 
-        $pedidos = Pedido::where(function ($q) use ($variants) {
+        $hasWhatsappCliente = $this->hasColumnSafe('pedidos', 'whatsapp_cliente');
+        $hasClienteWhatsapp = $this->hasColumnSafe('pedidos', 'cliente_whatsapp');
+
+        $pedidos = Pedido::where(function ($q) use ($variants, $hasWhatsappCliente, $hasClienteWhatsapp) {
             foreach ($variants as $v) {
-                $q->orWhere('whatsapp_cliente', 'like', "%{$v}%")
-                  ->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+                if ($hasClienteWhatsapp) {
+                    $q->orWhere('cliente_whatsapp', 'like', "%{$v}%");
+                }
+                if ($hasWhatsappCliente) {
+                    $q->orWhere('whatsapp_cliente', 'like', "%{$v}%");
+                }
             }
         })
         ->orderBy('created_at', 'desc')

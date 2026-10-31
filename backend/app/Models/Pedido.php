@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Pedido extends Model
@@ -130,7 +131,11 @@ class Pedido extends Model
     public function setClienteWhatsappAttribute(?string $value): void
     {
         $this->attributes['cliente_whatsapp'] = $value;
-        $this->attributes['whatsapp_cliente'] = $value;
+        try {
+            if (Schema::hasColumn('pedidos', 'whatsapp_cliente')) {
+                $this->attributes['whatsapp_cliente'] = $value;
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function getEmailClienteAttribute(): ?string
@@ -140,8 +145,12 @@ class Pedido extends Model
 
     public function setEmailClienteAttribute(?string $value): void
     {
-        $this->attributes['email_cliente'] = $value;
         $this->attributes['cliente_email'] = $value;
+        try {
+            if (Schema::hasColumn('pedidos', 'email_cliente')) {
+                $this->attributes['email_cliente'] = $value;
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function getClienteEmailAttribute(): ?string
@@ -152,7 +161,11 @@ class Pedido extends Model
     public function setClienteEmailAttribute(?string $value): void
     {
         $this->attributes['cliente_email'] = $value;
-        $this->attributes['email_cliente'] = $value;
+        try {
+            if (Schema::hasColumn('pedidos', 'email_cliente')) {
+                $this->attributes['email_cliente'] = $value;
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function getNomeClienteAttribute(): ?string
@@ -162,8 +175,12 @@ class Pedido extends Model
 
     public function setNomeClienteAttribute(?string $value): void
     {
-        $this->attributes['nome_cliente'] = $value;
         $this->attributes['cliente_nome'] = $value;
+        try {
+            if (Schema::hasColumn('pedidos', 'nome_cliente')) {
+                $this->attributes['nome_cliente'] = $value;
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function getClienteNomeAttribute(): ?string
@@ -174,7 +191,11 @@ class Pedido extends Model
     public function setClienteNomeAttribute(?string $value): void
     {
         $this->attributes['cliente_nome'] = $value;
-        $this->attributes['nome_cliente'] = $value;
+        try {
+            if (Schema::hasColumn('pedidos', 'nome_cliente')) {
+                $this->attributes['nome_cliente'] = $value;
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function getReferenciasAttribute($value): array
