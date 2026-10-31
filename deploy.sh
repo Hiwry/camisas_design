@@ -30,6 +30,12 @@ echo "🗄️ Executando migrações do banco de dados..."
 php artisan migrate --force
 
 echo "🔗 Criando link simbólico para storage..."
+if [ -d "public/storage" ] && [ ! -L "public/storage" ]; then
+    echo "⚠️ Pasta física public/storage detectada. Substituindo por link simbólico..."
+    # Se houver arquivos na pasta física antiga, move para storage/app/public
+    cp -rn public/storage/* storage/app/public/ 2>/dev/null || true
+    rm -rf public/storage
+fi
 php artisan storage:link || true
 
 echo "⚡ Limpando e gerando caches de produção do Laravel..."

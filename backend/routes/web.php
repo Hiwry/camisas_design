@@ -3,38 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
-// Debug route para diagnosticar storage em producao
-Route::get('/debug-storage', function () {
-    $path = request('path', 'pedidos/referencias/0LxIE4ij0XF52cXRvXjFUOsQBEfB4U1tthgO3Cep.png');
-
-    $storageApp = storage_path('app');
-    $allFiles = [];
-    try {
-        if (file_exists($storageApp)) {
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($storageApp, \FilesystemIterator::SKIP_DOTS));
-            foreach ($iterator as $file) {
-                if ($file->isFile()) {
-                    $allFiles[] = str_replace(base_path(), '', $file->getPathname());
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        $allFiles = ['error' => $e->getMessage()];
-    }
-
-    return response()->json([
-        'requested_path'   => $path,
-        'base_path'        => base_path(),
-        'storage_path'     => storage_path(),
-        'public_path'      => public_path(),
-        'disk_default'     => config('filesystems.default'),
-        'disk_public_root' => config('filesystems.disks.public.root'),
-        'symlink_exists'   => is_link(public_path('storage')),
-        'symlink_target'   => is_link(public_path('storage')) ? readlink(public_path('storage')) : null,
-        'files_in_storage' => $allFiles,
-    ]);
-});
-
 // Fallback para servir arquivos do storage (quando o symlink público da hospedagem falhar ou não existir)
 Route::get('/storage/{path}', function (string $path) {
     if (str_contains($path, '..')) {

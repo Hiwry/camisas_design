@@ -16,4 +16,6 @@
 /bootstrap/cache/*
 !/bootstrap/cache/.gitignore
 *.log
+/public/storage
+
 
