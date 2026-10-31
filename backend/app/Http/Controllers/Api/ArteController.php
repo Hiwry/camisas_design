@@ -187,7 +187,12 @@ class ArteController extends Controller
         $this->authorizePedido($arte->pedido);
         try {
             $arte->desmarcarFinal();
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            $arte->update(['is_final' => false]);
+            if ($arte->pedido && $arte->pedido->status === 'aprovado') {
+                $arte->pedido->update(['status' => 'aguardando_aprovacao']);
+            }
+        }
         return response()->json($arte->fresh());
     }
 

@@ -749,10 +749,12 @@ export default function PedidoDetalhe() {
                     <div className="flex-1">
                       <span className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
                         <Star className={clsx("w-3.5 h-3.5", isFinal ? "fill-amber-400 text-amber-400" : "text-zinc-500")} />
-                        Marcar esta versão como Versão Final (Aprovada para Produção)
+                        Marcar como Versão Final (Aprova o pedido diretamente)
                       </span>
                       <p className="text-[11px] text-zinc-500">
-                        Define esta versão como a matriz final consolidada para impressão.
+                        {isFinal
+                          ? '⚡ Atenção: o pedido será movido para "Aprovado" no Kanban sem passar por aprovação do cliente.'
+                          : 'Deixe desmarcado para enviar em "Aguardando Aprovação" para o cliente revisar.'}
                       </p>
                     </div>
                   </label>

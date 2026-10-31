@@ -70,6 +70,9 @@ class Arte extends Model
     public function desmarcarFinal(): void
     {
         $this->update(['is_final' => false]);
+        if ($this->pedido && $this->pedido->status === 'aprovado') {
+            $this->pedido->update(['status' => 'aguardando_aprovacao']);
+        }
     }
 
     // Próximo número de versão para o pedido
