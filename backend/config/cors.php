@@ -8,7 +8,7 @@ return [
     | Permite apenas o frontend React. Em produção, trocar pela URL real.
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'storage/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 

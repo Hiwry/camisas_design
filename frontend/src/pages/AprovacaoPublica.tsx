@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { aprovacaoService } from '@/services/api'
 import toast from 'react-hot-toast'
+import { resolveMediaUrl } from '@/lib/url'
 import { format, parseISO } from 'date-fns'
 import { CheckCircle2, RefreshCw, FileText, ChevronDown, Shirt, ExternalLink, Download, Star, Image } from 'lucide-react'
 import clsx from 'clsx'
@@ -136,14 +137,15 @@ export default function AprovacaoPublica() {
           const tipoArte   = arte_ativa.arquivo_tipo?.toLowerCase() ?? ''
           const arquivos   = Array.isArray(arte_ativa.arquivos) ? arte_ativa.arquivos : []
           const previews   = arquivos.filter((a: any) => a.eh_preview)
-          const fontes     = arquivos.filter((a: any) => !a.eh_preview)
+          const fontes     = arquivos.filter((a: any) => !a.eh_preview).map((f: any) => ({ ...f, url: resolveMediaUrl(f.url) }))
 
-          const listaPreviews = previews.length > 0
+          const listaPreviews = (previews.length > 0
             ? previews
             : (arte_ativa.preview_url ? [{ url: arte_ativa.preview_url, nome: arte_ativa.preview_nome }] : (['png','jpg','jpeg','webp'].includes(tipoArte) ? [{ url: arte_ativa.arquivo_url, nome: arte_ativa.arquivo_nome }] : []))
+          ).map((p: any) => ({ ...p, url: resolveMediaUrl(p.url) }))
 
           const curPreview = listaPreviews[activePreviewIdx] ?? listaPreviews[0]
-          const previewSrc = curPreview?.url ?? null
+          const previewSrc = curPreview?.url ? resolveMediaUrl(curPreview.url) : null
           const versaoAtual = historico_artes?.find((a: { ativa: boolean }) => a.ativa)?.versao ?? arte_ativa.versao ?? 1
 
           return (
@@ -265,7 +267,7 @@ export default function AprovacaoPublica() {
                       ))
                     ) : (
                       <a
-                        href={arte_ativa.arquivo_url}
+                        href={resolveMediaUrl(arte_ativa.arquivo_url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"

@@ -86,4 +86,40 @@ class Arte extends Model
             ? number_format($kb / 1024, 1) . ' MB'
             : number_format($kb, 0) . ' KB';
     }
+
+    public function getPreviewUrlAttribute($value): ?string
+    {
+        if (!$value) return null;
+        if (str_contains($value, '/storage/')) {
+            $storagePath = substr($value, strpos($value, '/storage/'));
+            return request() ? url($storagePath) : $storagePath;
+        }
+        return $value;
+    }
+
+    public function getArquivoUrlAttribute($value): ?string
+    {
+        if (!$value) return null;
+        if (str_contains($value, '/storage/')) {
+            $storagePath = substr($value, strpos($value, '/storage/'));
+            return request() ? url($storagePath) : $storagePath;
+        }
+        return $value;
+    }
+
+    public function getArquivosAttribute($value): ?array
+    {
+        if (!$value) return null;
+        $data = is_array($value) ? $value : json_decode($value, true);
+        if (!is_array($data)) return null;
+
+        return array_values(array_filter(array_map(function ($item) {
+            if (!is_array($item) || empty($item)) return null;
+            if (!empty($item['url']) && is_string($item['url']) && str_contains($item['url'], '/storage/')) {
+                $storagePath = substr($item['url'], strpos($item['url'], '/storage/'));
+                $item['url'] = request() ? url($storagePath) : $storagePath;
+            }
+            return $item;
+        }, $data)));
+    }
 }

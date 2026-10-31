@@ -177,6 +177,38 @@ class Pedido extends Model
         $this->attributes['nome_cliente'] = $value;
     }
 
+    public function getReferenciasAttribute($value): array
+    {
+        if (!$value) {
+            return [];
+        }
+
+        $data = is_array($value) ? $value : json_decode($value, true);
+        if (!is_array($data)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($item) {
+            if (!is_array($item) || empty($item)) {
+                return null;
+            }
+
+            // Normaliza a URL do arquivo caso aponte para o storage local
+            if (!empty($item['url']) && is_string($item['url'])) {
+                if (str_contains($item['url'], '/storage/')) {
+                    $storagePath = substr($item['url'], strpos($item['url'], '/storage/'));
+                    if (request()) {
+                        $item['url'] = url($storagePath);
+                    } else {
+                        $item['url'] = $storagePath;
+                    }
+                }
+            }
+
+            return $item;
+        }, $data)));
+    }
+
     // Helpers
     public function linkAprovacao(): string
     {

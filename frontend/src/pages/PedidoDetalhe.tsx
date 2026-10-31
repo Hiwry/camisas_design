@@ -12,6 +12,7 @@ import {
   ExternalLink, Download
 } from 'lucide-react'
 import RevisaoArteModal from '@/components/RevisaoArteModal'
+import { resolveMediaUrl } from '@/lib/url'
 import { format, parseISO } from 'date-fns'
 import clsx from 'clsx'
 
@@ -216,9 +217,10 @@ export default function PedidoDetalhe() {
   const statusCfg       = STATUS_CONFIG[pedido.status] ?? STATUS_CONFIG['aguardando_briefing']
 
   // Preview da arte ativa: usa preview_url se disponível, senão arquivo_url se for imagem
-  const previewSrc = arteAtiva?.preview_url
+  const rawPreviewSrc = arteAtiva?.preview_url
     ?? (arteAtiva && ['png','jpg','jpeg','webp'].includes(arteAtiva.arquivo_tipo?.toLowerCase() ?? '')
       ? arteAtiva.arquivo_url : null)
+  const previewSrc = rawPreviewSrc ? resolveMediaUrl(rawPreviewSrc) : null
   const temFonte = !!arteAtiva?.arquivo_url
 
   return (
@@ -315,15 +317,17 @@ export default function PedidoDetalhe() {
         const previewsAtivos = arquivos.filter((a: any) => a.eh_preview)
         const fontesAtivos   = arquivos.filter((a: any) => !a.eh_preview)
 
-        const listaPreviews = previewsAtivos.length > 0
+        const listaPreviews = (previewsAtivos.length > 0
           ? previewsAtivos
           : (previewSrc ? [{ url: previewSrc, nome: arteAtiva.preview_nome || 'Visualização Principal' }] : [])
+        ).map((p: any) => ({ ...p, url: resolveMediaUrl(p.url) }))
 
-        const listaFontes = fontesAtivos.length > 0
+        const listaFontes = (fontesAtivos.length > 0
           ? fontesAtivos
           : (temFonte && arteAtiva.arquivo_url !== previewSrc
               ? [{ url: arteAtiva.arquivo_url, nome: arteAtiva.arquivo_nome || 'Arquivo Fonte', tipo: arteAtiva.arquivo_tipo, tamanho: arteAtiva.arquivo_tamanho }]
               : [])
+        ).map((f: any) => ({ ...f, url: resolveMediaUrl(f.url) }))
 
         const currentPreview = listaPreviews[activePreviewIdx] ?? listaPreviews[0]
 
@@ -1014,26 +1018,32 @@ export default function PedidoDetalhe() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {pedido.referencias.map((ref: { url: string; nome: string; tipo: string; tamanho: number }, i: number) => {
+              const finalUrl = resolveMediaUrl(ref.url)
               const nomeOuUrl = (ref.nome || ref.url || '').toLowerCase()
               const ehImagem = ['png','jpg','jpeg','gif','webp'].includes(ref.tipo?.toLowerCase() ?? '') ||
                 /\.(png|jpe?g|gif|webp)($|\?)/i.test(nomeOuUrl)
               return (
                 <a
                   key={i}
-                  href={ref.url}
+                  href={finalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group rounded-xl overflow-hidden border transition-all hover:border-[rgba(212,160,32,0.4)]"
                   style={{ background: '#161616', borderColor: '#2a2a2a' }}
                 >
                   {ehImagem ? (
-                    <div className="aspect-square overflow-hidden flex items-center justify-center" style={{ background: '#111' }}>
+                    <div className="aspect-square overflow-hidden flex items-center justify-center relative" style={{ background: '#111' }}>
                       <img
-                        src={ref.url}
+                        src={finalUrl}
                         alt={ref.nome}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         onError={(e) => {
                           const img = e.currentTarget
+                          if (!img.dataset.retried && finalUrl.includes('/storage/')) {
+                            img.dataset.retried = 'true'
+                            img.src = finalUrl.substring(finalUrl.indexOf('/storage/'))
+                            return
+                          }
                           img.style.display = 'none'
                           const parent = img.parentElement
                           if (parent && !parent.querySelector('.fallback-placeholder')) {
@@ -1052,7 +1062,7 @@ export default function PedidoDetalhe() {
                     </div>
                   )}
                   <div className="p-2 border-t" style={{ borderColor: '#2a2a2a' }}>
-                    <p className="text-[10px] text-zinc-400 truncate" title={ref.nome}>{ref.nome}</p>
+                    <p className="text-[10px] text-zinc-400 truncate" title={ref.nome}>{ref.nome || `Arquivo ${i + 1}`}</p>
                     <p className="text-[10px] text-zinc-700">{(ref.tamanho ? ref.tamanho / 1024 : 0).toFixed(0)} KB</p>
                   </div>
                 </a>

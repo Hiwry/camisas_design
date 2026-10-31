@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from 'react-router-dom'
 import type { KanbanPedido } from './KanbanBoard'
 import { format, isPast, parseISO } from 'date-fns'
+import { resolveMediaUrl } from '@/lib/url'
 import { Calendar, CheckCircle2, AlertCircle, RefreshCw, FileText, MessageCircle } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -38,8 +39,9 @@ export default function KanbanCard({ card, overlay }: Props) {
 
   // Preview usa preview_url (novo campo), com fallback para arquivo_url se for imagem
   const tipoArte    = card.arte_ativa?.arquivo_tipo?.toLowerCase() ?? ''
-  const previewUrl  = card.arte_ativa?.preview_url
+  const rawPreview  = card.arte_ativa?.preview_url
     ?? (['png','jpg','jpeg','webp'].includes(tipoArte) ? card.arte_ativa?.arquivo_url : null)
+  const previewUrl  = rawPreview ? resolveMediaUrl(rawPreview) : null
   const temPreview  = !!previewUrl
   const ehFontePdf  = !previewUrl && tipoArte === 'pdf'
 
