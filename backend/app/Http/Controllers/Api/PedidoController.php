@@ -92,7 +92,7 @@ class PedidoController extends Controller
         // Processa arquivos de referências (upload normal ou colados da área de transferência)
         $refsData = [];
         if ($request->hasFile('referencias')) {
-            $disk = config('filesystems.default', 'public');
+            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
             foreach ($request->file('referencias') as $arquivo) {
                 $path = $arquivo->store("pedidos/referencias", $disk);
                 $refsData[] = [

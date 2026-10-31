@@ -124,7 +124,7 @@ class PortfolioController extends Controller
             'ativo'            => 'nullable|boolean',
         ]);
 
-        $disk = config('filesystems.default', 'public');
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
         $imagemPrincipal = $request->imagem_principal;
 
         // Se fez upload de imagem principal
@@ -212,7 +212,7 @@ class PortfolioController extends Controller
             'ativo'            => 'nullable|boolean',
         ]);
 
-        $disk = config('filesystems.default', 'public');
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
         $data = $request->only([
             'titulo', 'categoria', 'servico', 'subtitulo', 'descricao', 'cliente',
             'ano', 'tecido', 'tecnica', 'destaque', 'ordem', 'ativo'

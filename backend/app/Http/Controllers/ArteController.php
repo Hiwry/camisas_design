@@ -29,7 +29,7 @@ class ArteController extends Controller
             'notas'           => 'nullable|string|max:1000',
         ]);
 
-        $disk = config('filesystems.default', 'public');
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
 
         // Desativar versão atual
         $pedido->artes()->where('ativa', true)->update(['ativa' => false]);
@@ -76,7 +76,7 @@ class ArteController extends Controller
             abort(404);
         }
 
-        $disk = config('filesystems.default', 'public');
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
 
         // Remover preview do storage
         if ($arte->preview_url) {

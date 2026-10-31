@@ -69,7 +69,7 @@ class PedidoController extends Controller
         // Upload das referências
         $refsData = [];
         if ($request->hasFile('referencias')) {
-            $disk = config('filesystems.default', 'public');
+            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
             foreach ($request->file('referencias') as $arquivo) {
                 $path = $arquivo->store("pedidos/referencias", $disk);
                 $refsData[] = [

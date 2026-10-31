@@ -43,7 +43,7 @@ class ArteController extends Controller
         }
 
         $versao = Arte::proximaVersao($pedido->id);
-        $disk = config('filesystems.default', 'public');
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
         $arquivosLista = [];
         $primeiroPreviewUrl = null;
         $primeiroPreviewNome = null;
