@@ -58,12 +58,12 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
   ]
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden" style={{ background: '#0a0a0a' }}>
+    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden" style={{ background: '#0B0B0C' }}>
 
       {/* ── Topbar Mobile (Visível apenas em telas menores que md) ── */}
       <header
         className="md:hidden flex items-center justify-between px-4 h-14 border-b flex-shrink-0 z-30"
-        style={{ background: '#111111', borderColor: '#1e1e1e' }}
+        style={{ background: '#121213', borderColor: '#222225' }}
       >
         <div className="flex items-center gap-3">
           <button
@@ -90,7 +90,7 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
         <div className="flex items-center gap-2">
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)', color: '#0a0a0a' }}
+            style={{ background: '#E7B32C', color: '#0B0B0C' }}
           >
             {user?.name?.[0]?.toUpperCase()}
           </div>
@@ -114,10 +114,10 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
           // Desktop expanded vs collapsed
           collapsed ? "md:w-16" : "md:w-60"
         )}
-        style={{ background: '#111111', borderColor: '#1e1e1e' }}
+        style={{ background: '#121213', borderColor: '#222225' }}
       >
         {/* Header da Sidebar */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b h-14 flex-shrink-0" style={{ borderColor: '#1e1e1e' }}>
+        <div className="flex items-center justify-between px-4 py-3.5 border-b h-14 flex-shrink-0" style={{ borderColor: '#222225' }}>
           <Link to="/" title="Ir para a página inicial" className="flex items-center gap-2 min-w-0">
             <img
               src="/logo.svg"
@@ -131,7 +131,7 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
             />
             {(!collapsed || mobileOpen) && (
               <span className="font-bold text-sm tracking-tight text-white truncate">
-                Camiseta<span style={{ color: '#d4a020' }}>Design</span>
+                Camiseta<span style={{ color: '#E7B32C' }}>Design</span>
               </span>
             )}
           </Link>
@@ -167,13 +167,14 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                   collapsed && !mobileOpen ? 'md:justify-center md:px-0' : '',
                   isActive
-                    ? 'text-[#0a0a0a] font-semibold'
+                    ? 'text-[#0B0B0C] font-semibold'
                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
                 )
               }
               style={({ isActive }) => isActive ? {
-                background: 'linear-gradient(135deg,#d4a020,#e8b430)',
-                boxShadow: '0 2px 12px rgba(212,160,32,0.25)',
+                background: '#E7B32C',
+                color: '#0B0B0C',
+                boxShadow: '0 2px 12px rgba(231,179,44,0.25)',
               } : {}}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -261,16 +262,16 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
         })()}
 
         {/* Usuário e Logout */}
-        <div className="p-2.5 border-t" style={{ borderColor: '#1e1e1e' }}>
+        <div className="p-2.5 border-t" style={{ borderColor: '#222225' }}>
           {(!collapsed || mobileOpen) ? (
             <>
               <div
                 className="flex items-center gap-3 px-3 py-2 rounded-lg mb-1"
-                style={{ background: '#181818' }}
+                style={{ background: '#1A1A1D' }}
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)', color: '#0a0a0a' }}
+                  style={{ background: '#E7B32C', color: '#0B0B0C' }}
                 >
                   {user?.name?.[0]?.toUpperCase()}
                 </div>
@@ -293,7 +294,7 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
             <div className="flex flex-col items-center gap-2 py-1">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)', color: '#0a0a0a' }}
+                style={{ background: '#E7B32C', color: '#0B0B0C' }}
                 title={`${user?.name} (${user?.role === 'admin' ? 'Admin' : 'Confecção'})`}
               >
                 {user?.name?.[0]?.toUpperCase()}
@@ -311,7 +312,7 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
       </aside>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-auto" style={{ background: '#0a0a0a' }}>
+      <main className="flex-1 flex flex-col min-w-0 overflow-auto" style={{ background: '#0B0B0C' }}>
         {children ?? <Outlet />}
       </main>
 

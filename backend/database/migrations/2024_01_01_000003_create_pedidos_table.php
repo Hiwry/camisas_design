@@ -18,7 +18,8 @@ return new class extends Migration
                 'em_producao',
                 'aguardando_aprovacao',
                 'aprovado',
-                'finalizado'
+                'finalizado',
+                'cancelado'
             ])->default('aguardando_briefing');
             $table->text('observacoes')->nullable();
             $table->date('prazo')->nullable();

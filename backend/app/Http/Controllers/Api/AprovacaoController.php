@@ -25,7 +25,10 @@ class AprovacaoController extends Controller
                 'tipo_impressao' => $pedido->tipo_impressao,
                 'status'         => $pedido->status,
                 'prazo'          => $pedido->prazo,
-                'confeccao'      => ['nome' => $pedido->confeccao->nome],
+                'confeccao'      => [
+                    'nome'     => $pedido->confeccao->nome,
+                    'telefone' => $pedido->confeccao->telefone ?? $pedido->confeccao->whatsapp ?? null,
+                ],
                 'observacoes'    => $pedido->observacoes,
             ],
             'arte_ativa'       => $pedido->arteAtiva,
@@ -36,13 +39,15 @@ class AprovacaoController extends Controller
 
     public function aprovar(Request $request, string $token)
     {
-        $request->merge(['status' => 'aprovado', 'nome' => $request->nome_aprovador]);
+        $nome = $request->input('nome_aprovador') ?? $request->input('nome');
+        $request->merge(['status' => 'aprovado', 'nome' => $nome]);
         return $this->responder($request, $token);
     }
 
     public function pedirRevisao(Request $request, string $token)
     {
-        $request->merge(['status' => 'revisao', 'nome' => $request->nome_aprovador]);
+        $nome = $request->input('nome_aprovador') ?? $request->input('nome');
+        $request->merge(['status' => 'revisao', 'nome' => $nome]);
         return $this->responder($request, $token);
     }
 
@@ -78,7 +83,7 @@ class AprovacaoController extends Controller
 
         // Campos de auditoria opcionais (só insere se a coluna existir)
         if (Schema::hasColumn('aprovacoes', 'aprovado_por_nome')) {
-            $aprovacaoData['aprovado_por_nome'] = $request->nome;
+            $aprovacaoData['aprovado_por_nome'] = $request->input('nome') ?? $request->input('nome_aprovador');
             $aprovacaoData['aprovado_por_ip']   = $request->ip();
             $aprovacaoData['aprovado_em']        = now();
         }

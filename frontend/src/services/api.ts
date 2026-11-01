@@ -102,6 +102,8 @@ export const confeccaoService = {
     api.post('/confeccoes', data).then((r) => r.data),
   atualizar: (id: number, data: Record<string, unknown>) =>
     api.put(`/confeccoes/${id}`, data).then((r) => r.data),
+  excluir: (id: number) =>
+    api.delete(`/confeccoes/${id}`).then((r) => r.data),
 }
 
 export const whatsappService = {

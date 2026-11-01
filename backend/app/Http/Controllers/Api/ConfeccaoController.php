@@ -142,16 +142,34 @@ class ConfeccaoController extends Controller
         // Apenas admin tem permissão para alterar plano e status ativo
         if ($user->isAdmin()) {
             $rules['plano'] = 'sometimes|in:avulso,basico,profissional,premium';
+            $rules['limite_mensal'] = 'nullable|integer|min:0';
             $rules['ativo'] = 'sometimes|boolean';
         }
 
         $request->validate($rules);
 
         $camposPermitidos = $user->isAdmin()
-            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'ativo']
+            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'limite_mensal', 'ativo']
             : ['nome', 'telefone', 'whatsapp', 'email'];
 
-        $confeccao->update($request->only($camposPermitidos));
+        $dados = $request->only($camposPermitidos);
+
+        // Se o plano for alterado mas o limite não for especificado, sincroniza com o padrão do plano
+        if (isset($dados['plano']) && !isset($dados['limite_mensal'])) {
+            $dados['limite_mensal'] = Confeccao::LIMITES_PLANO[$dados['plano']] ?? 0;
+        }
+
+        $confeccao->update($dados);
+
+        // Se tiver usuário associado, sincroniza nome e email
+        if ($confeccao->user) {
+            $userUpdates = [];
+            if (!empty($dados['nome'])) $userUpdates['name'] = $dados['nome'];
+            if (!empty($dados['email'])) $userUpdates['email'] = $dados['email'];
+            if (!empty($userUpdates)) {
+                $confeccao->user->update($userUpdates);
+            }
+        }
 
         return response()->json($confeccao->fresh('user'));
     }

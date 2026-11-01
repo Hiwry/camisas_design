@@ -42,22 +42,27 @@ class KanbanController extends Controller
                     'tipo_impressao'  => $p->tipo_impressao,
                     'status'          => $p->status,
                     'prazo'           => $p->prazo?->toDateString(),
+                    'valor'           => $p->valor,
+                    'token_aprovacao' => $p->token_aprovacao,
                     'confeccao'       => [
                         'id'   => $p->confeccao?->id,
                         'nome' => $p->confeccao?->nome ?? '—',
                     ],
-                    'cliente_nome'     => $p->cliente_nome,
-                    'cliente_whatsapp' => $p->cliente_whatsapp ?? $p->confeccao?->user?->whatsapp ?? $p->confeccao?->telefone ?? null,
+                    'cliente_nome'     => $p->cliente_nome ?? $p->nome_cliente,
+                    'cliente_whatsapp' => $p->cliente_whatsapp ?? $p->whatsapp_cliente ?? $p->confeccao?->user?->whatsapp ?? $p->confeccao?->telefone ?? null,
                     'arte_ativa' => $arteAtiva ? [
                         'arquivo_url'  => $arteAtiva->arquivo_url,
                         'arquivo_tipo' => $arteAtiva->arquivo_tipo,
                         'preview_url'  => $arteAtiva->preview_url ?? null,
                         'versao'       => $arteAtiva->versao,
                     ] : null,
+                    'referencias'     => $p->referencias ?? null,
                     'ultima_aprovacao' => $ultimaAp ? [
                         'status'     => $ultimaAp->status,
                         'comentario' => $ultimaAp->comentario,
                     ] : null,
+                    'updated_at'      => $p->updated_at?->toISOString(),
+                    'created_at'      => $p->created_at?->toISOString(),
                 ];
             });
 

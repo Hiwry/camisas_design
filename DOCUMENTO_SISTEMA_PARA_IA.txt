@@ -1,0 +1,189 @@
+================================================================================
+DOCUMENTO MESTRE: SISTEMA CAMISETA DESIGN (SaaS)
+Guia Completo de Funcionalidades, Proposta de Valor e Inteligência de Conteúdo
+================================================================================
+
+[INSTRUÇÃO PARA A IA DE CONTEÚDO]:
+Você é um estrategista de conteúdo, copywriter e diretor de criação sênior 
+especialista no mercado têxtil, confecções, estamparias e SaaS. Use todas as 
+informações técnicas, operacionais e comerciais deste documento para criar 
+roteiros dinâmicos (Reels/TikTok/Shorts), posts em carrossel, roteiros de 
+demonstração de tela (screen recording), anúncios de alta conversão e narrativas 
+magnéticas que conectem com as dores reais do dono de estamparia e de confecção.
+
+--------------------------------------------------------------------------------
+1. O QUE É O SISTEMA E QUAL É O SEU PROPÓSITO?
+--------------------------------------------------------------------------------
+O Camiseta Design é uma plataforma SaaS (Software as a Service) especializada em 
+gestão, controle de produção, revisão com Inteligência Artificial e aprovação 
+formal de artes para camisetas, uniformes e fardamentos esportivos.
+
+O sistema foi desenhado sob medida para o fluxo real de trabalho de:
+- Estamparias (Sublimação total, Silk-screen, DTF, Bordado, Transfer);
+- Confecções de Uniformes (Escolares/Interclasses/Terceirão, Corporativos, Esportivos, Eventos);
+- Designers Gráficos Têxteis e estúdios de criação focados em vestuário.
+
+A GRANDE MISSÃO DA PLATAFORMA:
+Eliminar de vez os três maiores pesadelos do mercado de estamparia:
+1. O prejuízo financeiro com erros de impressão: Estampar dezenas ou centenas de 
+   camisas com nomes próprios errados, acentos trocados, patrocinadores 
+   desatualizados ou logos deformados.
+2. O caos do WhatsApp: Artes perdidas em conversas, feedbacks vagos em áudios de 
+   3 minutos, prints em baixa resolução e versões desorganizadas 
+   (ex: Arte_final_v3_agora_vai.pdf).
+3. O golpe do "Eu não aprovei isso": Clientes que exigem a devolução do dinheiro 
+   ou a reimpressão de peças afirmando que a arte impressa não foi o que eles pediram.
+
+
+--------------------------------------------------------------------------------
+2. A QUEM SE DESTINA (PÚBLICO-ALVO & ICP)
+--------------------------------------------------------------------------------
+1. Donos de Confecções e Estamparias:
+   Precisam de controle visual da produção, redução de desperdício de tinta e 
+   tecido, e agilidade no atendimento ao cliente.
+
+2. Designers Têxteis (Sublimação & Estamparia):
+   Criam fardamentos e estampas diárias e precisam de uma ferramenta para gerenciar 
+   pedidos de várias confecções parceiras sem se perder.
+
+3. Clientes Finais (Contratantes de Fardamento):
+   Times de futebol amador, comissões de formatura de terceirão, igrejas, 
+   organizadores de eventos e empresas que precisam aprovar o layout de forma 
+   rápida e segura direto do smartphone.
+
+
+--------------------------------------------------------------------------------
+3. ARSENAL DE FUNCIONALIDADES (O QUE O SISTEMA FAZ)
+--------------------------------------------------------------------------------
+
+3.1. REVISOR DE ARTES COM INTELIGÊNCIA ARTIFICIAL (Diferencial Revolucionário)
+Tecnologia de ponta com Visão Computacional (Claude 3.5 Sonnet / OpenRouter).
+- Conferência Letra por Letra: A IA faz uma leitura minuciosa de todos os textos 
+  presentes na estampa (nomes próprios, números de telefone, redes sociais, 
+  patrocinadores, selos, escudos e fitas curvadas).
+- Caça-Erros Críticos: Detecta ausência de acentos (mesmo em fontes todas maiúsculas), 
+  cedilhas ausentes, letras invertidas ou nomes próprios trocados.
+- Comparador V1 vs. V2 (Versão Nova vs. Versão Anterior): Compara a nova versão com 
+  a anterior para garantir que as alterações pedidas pelo cliente foram feitas sem 
+  sumir com patrocinadores ou desconfigurar o layout.
+- Classificação por Gravidade: Separa os apontamentos em Crítico (cancela a produção 
+  para não dar prejuízo), Atenção e Informativo.
+- Sistema de Créditos com PIX: Cada análise por IA consome créditos (R$ 5,00 por análise). 
+  O usuário compra pacotes de créditos com pagamento instantâneo via PIX automatizado.
+
+3.2. LINK PÚBLICO DE APROVAÇÃO COM MOCKUP (Zero Fricção)
+- Aprovação sem Login: O cliente final recebe um link único (/aprovar/{token}) no 
+  WhatsApp. Ele não precisa criar conta, lembrar de senha ou baixar aplicativo.
+- Experiência Mobile First: Abre perfeitamente no celular, permitindo dar zoom de 
+  alta precisão na frente, nas costas, nas mangas e nos detalhes técnicos da camisa.
+- Aprovação Formal com 1 Clique: O cliente clica em "Aprovar Arte" e o sistema 
+  grava data, hora, IP e dispositivo utilizado.
+- Solicitação de Revisão Inteligente: Se o cliente quiser alterações, ele clica em 
+  "Pedir Ajustes", descreve o que quer mudar e o pedido volta imediatamente para 
+  a coluna de produção.
+- Histórico Completo de Versões: Mostra V1, V2, V3 com histórico visual, garantindo 
+  transparência total entre confecção e cliente.
+
+3.3. KANBAN VISUAL DE PRODUÇÃO TÊXTIL
+- Quadro interativo com Drag & Drop (arrastar e soltar) desenhado para o fluxo real 
+  de uma estamparia:
+  1. Aguardando Briefing (Cliente fechou o pedido, faltam detalhes/logos)
+  2. Em Produção (Designer desenhando a estampa e montando mockups)
+  3. Aguardando Aprovação (Link enviado para o cliente validar)
+  4. Aprovado (Pronto para separação de cores, impressão, sublimação ou corte)
+  5. Finalizado (Produzido e entregue)
+- Cards com badges de prioridade, prazos de entrega, status de revisão e miniaturas de arte.
+
+3.4. ASSISTENTE VIRTUAL & ATENDIMENTO NO WHATSAPP (Evolution API)
+- Criação de Pedidos pelo WhatsApp: Permite iniciar pedidos e briefings diretamente 
+  em conversas do WhatsApp.
+- Consulta Rápida pelo Zap: O dono ou designer digita mensagens como "como estão os 
+  pedidos?", "o que está atrasado?" ou "meus pedidos" e o bot responde em tempo 
+  real com relatórios gerenciais e status.
+- Notificações Automáticas: Envia mensagens ao cliente assim que a arte fica pronta 
+  para aprovação, com o link direto para o celular dele.
+
+3.5. PÁGINA PÚBLICA DE RASTREIO DE PEDIDOS
+- O cliente final acessa uma página limpa e moderna, digita o número de WhatsApp 
+  e vê em qual etapa está a produção do seu fardamento ou uniforme, sem precisar 
+  mandar mensagem perguntando "já tá pronto?".
+
+3.6. CATÁLOGO & PORTFÓLIO PÚBLICO INTERATIVO
+- Vitrine online integrada para exibir trabalhos já entregues (fardamentos de 
+  futebol, camisas de terceirão, linhas corporativas, streetwear).
+- Sistema de curtidas públicas e botão direto de solicitação de orçamento pelo WhatsApp.
+
+3.7. SHOP INTEGRADO DE SERVIÇOS & COMBOS
+- Venda direta de serviços avulsos da estamparia/estúdio:
+  * Vetorização expressa de logos antigos e prints;
+  * Criação de artes exclusivas avulsas;
+  * Mockups 3D realistas para apresentação a patrocinadores;
+  * Pacotes de estampas e fardamentos.
+- Checkout com cálculo de valores e confirmação de pagamento via PIX.
+
+3.8. GESTÃO MULTI-PERFIL (Admin vs. Confecções)
+- Perfil Administrador (Designer Chefe / Dono): Visão 360° do negócio, controle do 
+  Kanban geral, gestão de clientes/confecções, controle de itens do Shop, métricas e faturamento.
+- Perfil Confecção: Acesso restrito apenas aos seus próprios pedidos, upload de briefings, 
+  acompanhamento de artes e recarga de créditos de IA.
+
+
+--------------------------------------------------------------------------------
+4. MATRIZ DE "DOR vs. SOLUÇÃO" (Gatilhos Psicológicos para Vídeos)
+--------------------------------------------------------------------------------
+
+A DOR REAL DO ESTAMPADOR:
+1. Prejuízo de R$ 1.500 em tecido: Imprimiu 40 camisas com o nome do patrocinador 
+   com erro de digitação.
+   SOLUÇÃO DO SISTEMA: A IA analisa todos os nomes e textos antes de rodar o arquivo na impressora.
+   ÂNGULO DE VÍDEO: "O erro de R$ 1.500 que uma Inteligência Artificial evitou em 30 segundos."
+
+2. Cliente diz que não aprovou: Na entrega da camisa, o cliente reclama que a cor ou 
+   fonte estava diferente.
+   SOLUÇÃO DO SISTEMA: O cliente aprova em link com registro formal de data, hora e IP do celular.
+   ÂNGULO DE VÍDEO: "Nunca mais tome calote de cliente dizendo 'eu não aprovei isso'."
+
+3. WhatsApp entupido de mensagens: Dezenas de clientes mandando "como tá meu pedido?" o dia todo.
+   SOLUÇÃO DO SISTEMA: Página pública de rastreio e link direto para aprovação no celular.
+   ÂNGULO DE VÍDEO: "Como parei de responder 'já tá pronto?' 50 vezes por dia."
+
+4. Artes perdidas no computador: Ninguém sabe qual é o arquivo aprovado (v1, v2, final_mesmo).
+   SOLUÇÃO DO SISTEMA: O sistema arquiva cada versão e marca a arte aprovada com o selo "Arte Final".
+   ÂNGULO DE VÍDEO: "O fim das pastas com 'arte_final_agora_vai_2.cdr' no seu CorelDraw."
+
+
+--------------------------------------------------------------------------------
+5. EXEMPLOS DE PILARES E FORMATOS DE CONTEÚDO PARA CRIAR
+--------------------------------------------------------------------------------
+1. Vídeos de Choque / Alerta (Top of Funnel - Reels/TikTok):
+   - Encenar ou mostrar uma camisa com erro grotesco impresso (ex: nome sem acento ou 
+     telefone errado) e mostrar a ferramenta de IA escaneando e apontando o erro em vermelho.
+
+2. Demonstrações "Behind the Scenes" (Screen Recording):
+   - Gravar a tela do computador arrastando o card no Kanban e a tela do celular 
+     do cliente recebendo o link e aprovando com 1 toque.
+
+3. Tutoriais e Dicas Práticas de Estamparia:
+   - Dicas sobre resolução de imagem, vetorização, sublimação total e como profissionalizar 
+     uma confecção pequena para parecer uma multinacional.
+
+4. Histórias de Superação / Casos Reais:
+   - "De estamparia de fundo de quintal que perdia dinheiro para uma confecção 
+     automatizada com aprovação em tempo real e IA."
+
+
+--------------------------------------------------------------------------------
+6. GLOSSÁRIO TÉCNICO DO NICHO (Para falar a língua do cliente)
+--------------------------------------------------------------------------------
+- Sublimação Total: Processo onde toda a peça de poliéster é impressa e termotransferida 
+  (muito usada em uniformes esportivos).
+- Fardamento / Interclasses / Terceirão: Camisas de turmas escolares e atléticas universitárias 
+  com muitos nomes individuais e patrocinadores.
+- Vetorização: Redesenhar logomarcas em curvas (CorelDraw / Illustrator) para não ficarem 
+  pixeladas na impressão.
+- Mockup: Simulação digital hiper-realista da camiseta vestida em um modelo ou em 3D 
+  antes de ser costurada.
+- DTF (Direct to Film): Tecnologia moderna de estamparia por transferência direta de filme.
+- Silk-Screen / Serigrafia: Estamparia tradicional com separação de matrizes por cor.
+================================================================================
+

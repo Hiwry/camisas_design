@@ -19,10 +19,18 @@ class PedidoController extends Controller
         $query = Pedido::with(['confeccao', 'arteAtiva', 'ultimaAprovacao'])
             ->when($user->isConfeccao(), fn($q) => $q->where('confeccao_id', $user->confeccao->id))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->when($request->search, fn($q) => $q->where('titulo', 'like', "%{$request->search}%"))
+            ->when($request->search, function($q) use ($request) {
+                $term = $request->search;
+                $q->where(function($sub) use ($term) {
+                    $sub->where('titulo', 'like', "%{$term}%")
+                        ->orWhere('id', 'like', "%{$term}%")
+                        ->orWhereHas('confeccao', fn($cq) => $cq->where('nome', 'like', "%{$term}%"));
+                });
+            })
             ->latest();
 
-        return response()->json($query->paginate(20));
+        $perPage = $request->integer('per_page', 50);
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
