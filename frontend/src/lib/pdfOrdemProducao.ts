@@ -289,3 +289,4 @@ export function gerarEBaixarPdfOrdem(dados: TotaisProducaoResponse, nomeFallback
 
   doc.save(`ordem_producao_${safeName}.pdf`)
 }
+
