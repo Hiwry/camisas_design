@@ -64,7 +64,7 @@ class RastreioController extends Controller
             ];
         } else {
             // 2. Tenta encontrar pedidos pelo WhatsApp do cliente direto
-            $pedidos = Pedido::where(function ($q) use ($variants) {
+            $pedidosCandidatos = Pedido::where(function ($q) use ($variants) {
                 foreach ($variants as $v) {
                     $q->orWhere('whatsapp_cliente', 'like', "%{$v}%")
                       ->orWhere('cliente_whatsapp', 'like', "%{$v}%");
@@ -76,6 +76,32 @@ class RastreioController extends Controller
             ])
             ->orderBy('created_at', 'desc')
             ->get();
+
+            // Normaliza o número buscado para garantir que não haja vazamento de pedidos de terceiros
+            $cleanBusca = preg_replace('/\D/', '', $rawInput);
+            if (str_starts_with($cleanBusca, '55') && strlen($cleanBusca) >= 12) {
+                $cleanBusca = substr($cleanBusca, 2);
+            }
+            if (strlen($cleanBusca) === 11 && $cleanBusca[2] === '9') {
+                $cleanBusca = substr($cleanBusca, 0, 2) . substr($cleanBusca, 3);
+            }
+
+            $pedidos = $pedidosCandidatos->filter(function (Pedido $p) use ($cleanBusca) {
+                $telefones = array_filter([$p->cliente_whatsapp, $p->whatsapp_cliente]);
+                foreach ($telefones as $tel) {
+                    $c = preg_replace('/\D/', '', $tel);
+                    if (str_starts_with($c, '55') && strlen($c) >= 12) {
+                        $c = substr($c, 2);
+                    }
+                    if (strlen($c) === 11 && $c[2] === '9') {
+                        $c = substr($c, 0, 2) . substr($c, 3);
+                    }
+                    if (!empty($c) && $c === $cleanBusca) {
+                        return true;
+                    }
+                }
+                return false;
+            })->values();
 
             if ($pedidos->isNotEmpty()) {
                 $primeiro = $pedidos->first();

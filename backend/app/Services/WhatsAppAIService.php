@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Pedido;
 use App\Models\Confeccao;
+use App\Models\Grupo;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -88,9 +89,14 @@ class WhatsAppAIService
 
     /**
      * Normaliza número brasileiro removendo DDI 55 e nono dígito para comparações robustas
+     * Retorna sempre DDD + 8 dígitos (10 dígitos limpos)
      */
-    public function normalizarNumeroBR(string $numero): string
+    public function normalizarNumeroBR(?string $numero): string
     {
+        if (!$numero) {
+            return '';
+        }
+
         $d = preg_replace('/\D/', '', $numero);
         if (empty($d)) {
             return '';
@@ -108,7 +114,109 @@ class WhatsAppAIService
     }
 
     /**
-     * Verifica se o número é o administrador do sistema
+     * Compara se dois números representam o mesmo telefone brasileiro
+     */
+    public function numerosBatem(?string $numeroA, ?string $numeroB): bool
+    {
+        $normA = $this->normalizarNumeroBR($numeroA);
+        $normB = $this->normalizarNumeroBR($numeroB);
+
+        if (empty($normA) || empty($normB)) {
+            return false;
+        }
+
+        return $normA === $normB;
+    }
+
+    /**
+     * Valida de forma estrita se um pedido pertence ao telefone de WhatsApp informado
+     */
+    public function pedidoPertenceAoNumero(Pedido $pedido, string $numero): bool
+    {
+        $numeroNorm = $this->normalizarNumeroBR($numero);
+        if (empty($numeroNorm)) {
+            return false;
+        }
+
+        $telefones = array_filter([
+            $pedido->cliente_whatsapp,
+            $pedido->whatsapp_cliente,
+        ]);
+
+        foreach ($telefones as $tel) {
+            if ($this->numerosBatem($tel, $numeroNorm)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Busca EXCLUSIVAMENTE os pedidos vinculados ao número de WhatsApp que está falando
+     */
+    public function buscarPedidosPorNumero(string $numero): \Illuminate\Support\Collection
+    {
+        $numeroNorm = $this->normalizarNumeroBR($numero);
+        if (empty($numeroNorm) || strlen($numeroNorm) < 10) {
+            return collect();
+        }
+
+        $ddd = substr($numeroNorm, 0, 2);
+        $oitoDigitos = substr($numeroNorm, 2);
+        $comNove = $ddd . '9' . $oitoDigitos;
+
+        // Padrões para query LIKE rápida no banco cobrindo com/sem pontuação e com/sem 9
+        $likePatterns = array_filter(array_unique([
+            $numeroNorm,
+            $comNove,
+            '55' . $numeroNorm,
+            '55' . $comNove,
+            $oitoDigitos,
+            substr($oitoDigitos, 0, 4) . '-' . substr($oitoDigitos, 4),
+            substr($comNove, 2, 5) . '-' . substr($comNove, 7),
+        ]));
+
+        $hasWhatsappCliente = $this->hasColumnSafe('pedidos', 'whatsapp_cliente');
+        $hasClienteWhatsapp = $this->hasColumnSafe('pedidos', 'cliente_whatsapp');
+
+        $candidatos = Pedido::with(['confeccao', 'arteAtiva', 'ultimaAprovacao'])
+            ->where(function ($q) use ($likePatterns, $hasWhatsappCliente, $hasClienteWhatsapp) {
+                foreach ($likePatterns as $pat) {
+                    if ($hasClienteWhatsapp) {
+                        $q->orWhere('cliente_whatsapp', 'like', "%{$pat}%");
+                    }
+                    if ($hasWhatsappCliente) {
+                        $q->orWhere('whatsapp_cliente', 'like', "%{$pat}%");
+                    }
+                }
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Filtro estrito: apenas pedidos cujo número normalizado bate exatamente com o do cliente
+        return $candidatos->filter(fn(Pedido $p) => $this->pedidoPertenceAoNumero($p, $numero))->values();
+    }
+
+    /**
+     * Busca grupos de camisas onde o cliente é responsável
+     */
+    public function buscarGruposPorNumero(string $numero): \Illuminate\Support\Collection
+    {
+        $numeroNorm = $this->normalizarNumeroBR($numero);
+        if (empty($numeroNorm) || !Schema::hasTable('grupos') || !Schema::hasColumn('grupos', 'cliente_whatsapp')) {
+            return collect();
+        }
+
+        return Grupo::whereNotNull('cliente_whatsapp')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->filter(fn(Grupo $g) => $this->numerosBatem($g->cliente_whatsapp, $numeroNorm))
+            ->values();
+    }
+
+    /**
+     * Verifica se o número é o administrador do sistema (comparação estrita de DDD + número)
      */
     public function isAdmin(string $numero): bool
     {
@@ -121,19 +229,18 @@ class WhatsAppAIService
         }
 
         $numeroNorm = $this->normalizarNumeroBR($numero);
-        $numeroVars = $this->gerarVariacoesNumero($numero);
+        if (empty($numeroNorm)) {
+            return false;
+        }
+
         $admins = explode(',', $this->adminNumber);
 
         foreach ($admins as $admin) {
             $adminClean = trim($admin);
             if (empty($adminClean)) continue;
 
-            if ($numeroNorm === $this->normalizarNumeroBR($adminClean)) {
-                return true;
-            }
-
-            $adminVars = $this->gerarVariacoesNumero($adminClean);
-            if (!empty(array_intersect($numeroVars, $adminVars))) {
+            $adminNorm = $this->normalizarNumeroBR($adminClean);
+            if (!empty($adminNorm) && $numeroNorm === $adminNorm) {
                 return true;
             }
         }
@@ -163,18 +270,20 @@ class WhatsAppAIService
             ];
         }
 
-        $variants = $this->gerarVariacoesNumero($numero);
+        $numeroNorm = $this->normalizarNumeroBR($numero);
 
         // 1. Confecção cadastrada (mesmo sem login/senha)
         $temTelefone = $this->hasColumnSafe('confeccoes', 'telefone');
-        $confeccao = Confeccao::where(function ($q) use ($variants, $temTelefone) {
-            foreach ($variants as $v) {
-                $q->orWhere('whatsapp', 'like', "%{$v}%");
-                if ($temTelefone) {
-                    $q->orWhere('telefone', 'like', "%{$v}%");
-                }
+        $confeccoes = Confeccao::all();
+        $confeccao = $confeccoes->first(function ($c) use ($numeroNorm, $temTelefone) {
+            if ($this->numerosBatem($c->whatsapp, $numeroNorm)) {
+                return true;
             }
-        })->first();
+            if ($temTelefone && $this->numerosBatem($c->telefone, $numeroNorm)) {
+                return true;
+            }
+            return false;
+        });
 
         if ($confeccao) {
             return [
@@ -185,26 +294,18 @@ class WhatsAppAIService
             ];
         }
 
-        // 2. Cliente final com pedido registrado
-        $hasWhatsappCliente = $this->hasColumnSafe('pedidos', 'whatsapp_cliente');
-        $hasClienteWhatsapp = $this->hasColumnSafe('pedidos', 'cliente_whatsapp');
-        $pedido = Pedido::where(function ($q) use ($variants, $hasWhatsappCliente, $hasClienteWhatsapp) {
-            foreach ($variants as $v) {
-                if ($hasClienteWhatsapp) {
-                    $q->orWhere('cliente_whatsapp', 'like', "%{$v}%");
-                }
-                if ($hasWhatsappCliente) {
-                    $q->orWhere('whatsapp_cliente', 'like', "%{$v}%");
-                }
-            }
-        })->latest()->first();
+        // 2. Cliente final com pedido(s) registrado(s) vinculado(s) a este número
+        $pedidos = $this->buscarPedidosPorNumero($numero);
+        $grupos = $this->buscarGruposPorNumero($numero);
 
-        if ($pedido) {
+        if ($pedidos->isNotEmpty() || $grupos->isNotEmpty()) {
+            $primeiro = $pedidos->first();
+            $nome = $primeiro?->nome_cliente ?? $primeiro?->cliente_nome ?? $grupos->first()?->cliente_nome ?? 'Cliente';
             return [
                 'tipo'      => 'cliente',
-                'nome'      => $pedido->nome_cliente ?? $pedido->cliente_nome ?? 'Cliente',
-                'confeccao' => $pedido->confeccao,
-                'pedido'    => $pedido,
+                'nome'      => $nome,
+                'confeccao' => $primeiro?->confeccao,
+                'pedido'    => $primeiro,
             ];
         }
 
@@ -322,13 +423,12 @@ class WhatsAppAIService
                 if ($remetente['tipo'] === 'confeccao') {
                     $resposta = $this->relatorioPedidosConfeccao($remetente['confeccao'], $numero);
                 } elseif ($remetente['tipo'] === 'cliente') {
-                    $resposta = $this->relatorioPedidosCliente($numero);
+                    $resposta = $this->relatorioPedidosCliente($numero, 'meus_pedidos');
                 } elseif ($remetente['tipo'] === 'admin') {
                     $resposta = $this->relatorioResumoGeral();
                 } else {
-                    $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número.\n\n"
+                    $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número de WhatsApp.\n\n"
                         . "• Para fazer um pedido agora pelo WhatsApp, digite *Novo Pedido*.\n"
-                        . "• Para consultar um pedido específico, digite *pedido #número* (ex: _pedido 12_).\n"
                         . "• Para rastrear no site: https://camisetadesign.com.br/rastreio?tel={$numero}";
                 }
 
@@ -344,14 +444,14 @@ class WhatsAppAIService
             }
 
             // Roteamento por tipo de usuário:
-            // 1. ADMIN: mantém comandos gerenciais completos
+            // 1. ADMIN: mantém comandos gerenciais completos do sistema
             if ($remetente['tipo'] === 'admin') {
                 $resposta = $this->gerarResposta($classificacao, $mensagem);
                 $this->wa->enviarTexto($numero, $resposta);
                 return;
             }
 
-            // 2. CONFECÇÃO CADASTRADA (mesmo sem login/senha)
+            // 2. CONFECÇÃO CADASTRADA (vê apenas seus próprios pedidos)
             if ($remetente['tipo'] === 'confeccao') {
                 if (in_array($intencao, ['pedidos_atrasados', 'prazos_entrega', 'resumo_geral', 'pedidos_por_status'])) {
                     $resposta = $this->relatorioPedidosConfeccao($remetente['confeccao'], $numero);
@@ -362,14 +462,24 @@ class WhatsAppAIService
                 return;
             }
 
-            // 3. CLIENTE COM PEDIDO
+            // 3. CLIENTE: ACESSO EXCLUSIVO AOS PEDIDOS VINCULADOS AO SEU PRÓPRIO NÚMERO
             if ($remetente['tipo'] === 'cliente') {
-                $resposta = $this->relatorioPedidosCliente($numero);
+                $statusFiltro = $classificacao['status'] ?? null;
+                $resposta = $this->relatorioPedidosCliente($numero, $intencao, $statusFiltro);
                 $this->wa->enviarTexto($numero, $resposta);
                 return;
             }
 
-            // 4. VISITANTE / NOVO LEAD
+            // 4. VISITANTE / NOVO LEAD (sem pedidos cadastrados): NENHUM ACESSO A PEDIDOS
+            if (in_array($intencao, ['meus_pedidos', 'resumo_geral', 'pedidos_atrasados', 'prazos_entrega', 'pedidos_por_status'])) {
+                $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número de WhatsApp.\n\n"
+                    . "• Para iniciar um novo pedido de fardamento ou arte, digite *Novo Pedido*.\n"
+                    . "• Se o seu pedido foi cadastrado com outro telefone, informe ao nosso atendimento para atualizarmos seu cadastro.\n"
+                    . "• Portal de rastreio online: https://camisetadesign.com.br/rastreio?tel={$numero}";
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
             $resposta = $this->mensagemAjudaVisitante();
             $this->wa->enviarTexto($numero, $resposta);
 
@@ -426,8 +536,8 @@ class WhatsAppAIService
             }
         }
 
-        // Tenta extrair ID de pedido mesmo sem match de intenção
-        if (preg_match('/\b(\d{1,6})\b/', $mensagem, $matches)) {
+        // Tenta extrair ID de pedido se o usuário explicitamente mencionou pedido/ordem ou digitou apenas o número
+        if (preg_match('/^\s*#?(\d{1,6})\s*$/', $mensagem, $matches) || preg_match('/(?:pedido|ordem)\s*(?:n[uú]mero\s*|n[ºo]\s*|#\s*)?(\d{1,6})/iu', $mensagem, $matches)) {
             $possivelId = (int) $matches[1];
             if ($possivelId > 0 && $possivelId < 999999) {
                 if (Pedido::where('id', $possivelId)->exists()) {
@@ -1149,60 +1259,71 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
     }
 
     /**
-     * Relatório de pedidos para cliente final
+     * Relatório de pedidos para cliente final — EXCLUSIVAMENTE os pedidos do seu número
      */
-    public function relatorioPedidosCliente(string $numero): string
+    public function relatorioPedidosCliente(string $numero, ?string $intencao = null, ?string $filtroStatus = null): string
     {
-        $variants = $this->gerarVariacoesNumero($numero);
+        $pedidos = $this->buscarPedidosPorNumero($numero);
+        $grupos = $this->buscarGruposPorNumero($numero);
 
-        $hasWhatsappCliente = $this->hasColumnSafe('pedidos', 'whatsapp_cliente');
-        $hasClienteWhatsapp = $this->hasColumnSafe('pedidos', 'cliente_whatsapp');
+        if ($pedidos->isEmpty() && $grupos->isEmpty()) {
+            return "🔍 *Seus Pedidos*\n\nNenhum pedido encontrado vinculado ao seu número de WhatsApp.\n\n"
+                . "• Para criar uma nova arte ou fardamento, digite *Novo Pedido*.\n"
+                . "• Se o seu pedido foi cadastrado com outro telefone, entre em contato com nossa equipe para atualizarmos seu contato.";
+        }
 
-        $pedidos = Pedido::where(function ($q) use ($variants, $hasWhatsappCliente, $hasClienteWhatsapp) {
-            foreach ($variants as $v) {
-                if ($hasClienteWhatsapp) {
-                    $q->orWhere('cliente_whatsapp', 'like', "%{$v}%");
-                }
-                if ($hasWhatsappCliente) {
-                    $q->orWhere('whatsapp_cliente', 'like', "%{$v}%");
-                }
+        // Filtro por status específico solicitado (ex: "aprovados", "em produção")
+        if ($filtroStatus) {
+            $pedidos = $pedidos->filter(fn(Pedido $p) => $p->status === $filtroStatus)->values();
+        }
+
+        // Filtro se pediu apenas atrasados
+        if ($intencao === 'pedidos_atrasados') {
+            $pedidos = $pedidos->filter(fn(Pedido $p) => $p->estaAtrasado())->values();
+            if ($pedidos->isEmpty()) {
+                return "✅ *Seus Pedidos — Prazos*\n\nNenhum dos seus pedidos está em atraso! Tudo dentro do cronograma. 🎉\n\n"
+                    . "Digite *Meus Pedidos* para ver o status completo.";
             }
-        })
-        ->orderBy('created_at', 'desc')
-        ->limit(10)
-        ->get();
-
-        if ($pedidos->isEmpty()) {
-            return "🔍 *Seus Pedidos*\n\nNenhum pedido encontrado para o seu número.\n\n"
-                . "Para criar uma nova arte, digite *Novo Pedido*.";
         }
 
         $texto = "📦 *Seus Pedidos — Camiseta Design*\n"
             . "━━━━━━━━━━━━━━━━━━━━━\n\n";
 
-        foreach ($pedidos as $p) {
-            $emoji = $this->emojiStatus($p->status);
-            $label = Pedido::STATUS_LABELS[$p->status] ?? $p->status;
-            $prazo = $p->prazo ? $p->prazo->format('d/m') : 'A definir';
+        if ($pedidos->isNotEmpty()) {
+            foreach ($pedidos as $p) {
+                $emoji = $this->emojiStatus($p->status);
+                $label = Pedido::STATUS_LABELS[$p->status] ?? $p->status;
+                $prazo = $p->prazo ? $p->prazo->format('d/m/Y') : 'A definir';
 
-            $texto .= "{$emoji} *#{$p->id} — {$p->titulo}*\n";
-            $texto .= "  • Status: *{$label}*\n";
-            $texto .= "  • Prazo: {$prazo}\n";
+                $texto .= "{$emoji} *#{$p->id} — {$p->titulo}*\n";
+                $texto .= "  • Status: *{$label}*\n";
+                $texto .= "  • Prazo de entrega: {$prazo}\n";
 
-            if ($p->status === 'aguardando_aprovacao') {
-                $texto .= "  • 👉 *Aprovar arte:* https://camisetadesign.com.br/aprovar/{$p->token_aprovacao}\n";
+                if ($p->status === 'aguardando_aprovacao') {
+                    $texto .= "  • 👉 *Aprovar arte:* https://camisetadesign.com.br/aprovar/{$p->token_aprovacao}\n";
+                }
+                $texto .= "\n";
             }
-            $texto .= "\n";
+        }
+
+        // Grupos de Camisas vinculados ao número
+        if ($grupos->isNotEmpty()) {
+            $texto .= "👕 *Seus Grupos de Camisas:*\n";
+            foreach ($grupos as $g) {
+                $labelStatus = ucfirst(str_replace('_', ' ', $g->status));
+                $texto .= "  • *{$g->nome}* (Status: {$labelStatus})\n";
+                $texto .= "    👉 Link do grupo: https://camisetadesign.com.br/grupo/{$g->token}\n\n";
+            }
         }
 
         $texto .= "━━━━━━━━━━━━━━━━━━━━━\n";
-        $texto .= "🌐 Acompanhe no portal: https://camisetadesign.com.br/rastreio?tel={$numero}";
+        $texto .= "🌐 Acompanhe detalhes no portal: https://camisetadesign.com.br/rastreio?tel={$numero}";
 
         return $texto;
     }
 
     /**
-     * Detalhes seguros de um pedido com validação de pertencimento
+     * Detalhes seguros de um pedido com validação estrita de pertencimento
      */
     public function relatorioDetalhePedidoSeguro(int $pedidoId, array $remetente, string $numero): string
     {
@@ -1212,8 +1333,19 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             return "❌ Pedido *#{$pedidoId}* não foi encontrado.";
         }
 
-        if ($remetente['tipo'] === 'confeccao' && $pedido->confeccao_id !== $remetente['confeccao']?->id) {
-            return "⚠️ O pedido *#{$pedidoId}* não pertence à sua conta de confecção.";
+        // Validação estrita de segurança e pertencimento:
+        // Apenas Administradores do sistema podem ver pedidos de qualquer cliente.
+        if ($remetente['tipo'] !== 'admin') {
+            if ($remetente['tipo'] === 'confeccao') {
+                if ($pedido->confeccao_id !== $remetente['confeccao']?->id) {
+                    return "⚠️ O pedido *#{$pedidoId}* não pertence à sua conta de confecção.";
+                }
+            } else {
+                // Cliente ou visitante: SÓ pode acessar pedidos vinculados ao seu próprio número de WhatsApp
+                if (!$this->pedidoPertenceAoNumero($pedido, $numero)) {
+                    return "⚠️ O pedido *#{$pedidoId}* não está vinculado ao seu número de WhatsApp ({$numero}).\n\nPor questões de privacidade e segurança, você só tem acesso aos seus próprios pedidos.";
+                }
+            }
         }
 
         $emoji = $this->emojiStatus($pedido->status);
