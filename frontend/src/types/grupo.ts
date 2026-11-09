@@ -91,6 +91,8 @@ export interface Grupo {
   id: number
   user_id?: number | null
   confeccao_id?: number | null
+  cliente_nome?: string | null
+  cliente_whatsapp?: string | null
   nome: string
   descricao?: string | null
   imagem_capa?: string | null

@@ -194,4 +194,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/grupos/{id}/status-producao',   [GrupoConfeccaoController::class, 'atualizarStatusProducao']);
     Route::get('/grupos/{id}/totais-producao',    [GrupoExportController::class, 'totaisProducao']);
     Route::get('/grupos/{id}/exportar-csv',       [GrupoExportController::class, 'exportarCsv']);
+    Route::get('/grupos/{id}/exportar-pdf',       [GrupoExportController::class, 'exportarPdf']);
 });

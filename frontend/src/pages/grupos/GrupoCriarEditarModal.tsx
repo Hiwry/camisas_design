@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Upload, Plus, Trash2, Shirt, Calendar, Users, DollarSign, Image as ImageIcon, Key, RefreshCw } from 'lucide-react'
+import { X, Upload, Plus, Trash2, Shirt, Calendar, Users, DollarSign, Image as ImageIcon, Key, RefreshCw, User, Phone } from 'lucide-react'
 import { grupoService } from '@/services/grupoService'
 import { confeccaoService } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
@@ -17,6 +17,8 @@ export default function GrupoCriarEditarModal({ grupoParaEditar, onClose, onSucc
 
   const [nome, setNome] = useState(grupoParaEditar?.nome || '')
   const [descricao, setDescricao] = useState(grupoParaEditar?.descricao || '')
+  const [clienteNome, setClienteNome] = useState(grupoParaEditar?.cliente_nome || '')
+  const [clienteWhatsapp, setClienteWhatsapp] = useState(grupoParaEditar?.cliente_whatsapp || '')
   const [totalEsperado, setTotalEsperado] = useState(grupoParaEditar?.total_esperado || 30)
   const [pedidoMinimo, setPedidoMinimo] = useState(grupoParaEditar?.pedido_minimo || 0)
   const [prazoLimite, setPrazoLimite] = useState(
@@ -106,6 +108,8 @@ export default function GrupoCriarEditarModal({ grupoParaEditar, onClose, onSucc
     const formData = new FormData()
     formData.append('nome', nome)
     formData.append('descricao', descricao)
+    formData.append('cliente_nome', clienteNome)
+    formData.append('cliente_whatsapp', clienteWhatsapp)
     formData.append('total_esperado', String(totalEsperado))
     formData.append('pedido_minimo', String(pedidoMinimo))
     formData.append('prazo_limite', prazoLimite)
@@ -197,6 +201,39 @@ export default function GrupoCriarEditarModal({ grupoParaEditar, onClose, onSucc
                 className="textarea"
                 rows={2}
               />
+            </div>
+
+            {/* Identificação do Cliente / Responsável */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-zinc-900/80 border border-zinc-800">
+              <div>
+                <label className="label flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  Cliente / Responsável do Grupo
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: João Silva / Colégio ABC / Turma B"
+                  value={clienteNome}
+                  onChange={(e) => setClienteNome(e.target.value)}
+                  className="input"
+                />
+                <span className="text-[11px] text-zinc-500 mt-1 block">Para saber qual cliente está com este grupo</span>
+              </div>
+
+              <div>
+                <label className="label flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-amber-400" />
+                  WhatsApp do Cliente (com DDD)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 82999998888"
+                  value={clienteWhatsapp}
+                  onChange={(e) => setClienteWhatsapp(e.target.value)}
+                  className="input"
+                />
+                <span className="text-[11px] text-zinc-500 mt-1 block">Para contato direto ou envio da ordem</span>
+              </div>
             </div>
           </div>
 

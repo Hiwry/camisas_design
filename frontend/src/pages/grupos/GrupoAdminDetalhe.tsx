@@ -34,6 +34,9 @@ import {
   ArrowLeft,
   Upload,
   Key,
+  FileDown,
+  User,
+  Phone,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Grupo, GrupoParticipante } from '@/types/grupo'
@@ -267,6 +270,14 @@ export default function GrupoAdminDetalhe() {
             <Share2 className="w-3.5 h-3.5" />
             WhatsApp
           </button>
+          <button
+            onClick={() => grupoService.baixarPdf(grupoId, grupo.nome)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 text-xs font-semibold transition"
+            title="Baixar Ordem de Produção em PDF"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Baixar PDF
+          </button>
         </div>
       </div>
 
@@ -280,11 +291,37 @@ export default function GrupoAdminDetalhe() {
                 {grupo.status.replace('_', ' ')}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1">
-              Organizador: <strong className="text-zinc-200">{grupo.user?.name || 'Cliente'}</strong> • Prazo:{' '}
-              {new Date(grupo.prazo_limite).toLocaleDateString('pt-BR')} • Total de peças:{' '}
-              <strong className="text-amber-400">{grupo.total_pecas || 0}</strong>
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400 mt-1.5">
+              {(grupo.cliente_nome || grupo.user?.name) && (
+                <span className="flex items-center gap-1 text-amber-300 font-medium">
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  Cliente: <strong className="text-white">{grupo.cliente_nome || grupo.user?.name}</strong>
+                  {grupo.cliente_whatsapp && (
+                    <a
+                      href={`https://wa.me/55${grupo.cliente_whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-400 hover:text-emerald-300 ml-1 inline-flex items-center gap-0.5 underline text-[11px]"
+                      title="Chamar no WhatsApp"
+                    >
+                      <Phone className="w-3 h-3" />
+                      {grupo.cliente_whatsapp}
+                    </a>
+                  )}
+                </span>
+              )}
+              {grupo.confeccao?.nome && (
+                <span className="text-zinc-400">
+                  Confecção: <strong className="text-zinc-200">{grupo.confeccao.nome}</strong>
+                </span>
+              )}
+              <span>
+                Prazo: <strong className="text-zinc-200">{new Date(grupo.prazo_limite).toLocaleDateString('pt-BR')}</strong>
+              </span>
+              <span>
+                Total de peças: <strong className="text-amber-400">{grupo.total_pecas || 0}</strong>
+              </span>
+            </div>
           </div>
 
           {/* Botões de Ação */}
@@ -598,6 +635,9 @@ export default function GrupoAdminDetalhe() {
           dados={dadosProducao}
           onExportarCsv={() => {
             window.open(grupoService.urlExportarCsv(grupoId), '_blank')
+          }}
+          onExportarPdf={() => {
+            grupoService.baixarPdf(grupoId, grupo.nome)
           }}
         />
       )}

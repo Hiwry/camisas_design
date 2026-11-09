@@ -1,12 +1,13 @@
-import { Printer, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Printer, FileSpreadsheet, AlertTriangle, CheckCircle2, Download } from 'lucide-react'
 import type { TotaisProducaoResponse } from '@/types/grupo'
 
 interface Props {
   dados: TotaisProducaoResponse
   onExportarCsv: () => void
+  onExportarPdf?: () => void
 }
 
-export default function GradeProducao({ dados, onExportarCsv }: Props) {
+export default function GradeProducao({ dados, onExportarCsv, onExportarPdf }: Props) {
   const { grupo, total_pecas, por_tamanho, por_modelo, grade, numeros_repetidos, lista_nomes_numeros } = dados
 
   function handleImprimirOrdem() {
@@ -38,12 +39,21 @@ export default function GradeProducao({ dados, onExportarCsv }: Props) {
             <FileSpreadsheet className="w-4 h-4" />
             Exportar Excel / CSV
           </button>
+          {onExportarPdf && (
+            <button
+              onClick={onExportarPdf}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-amber-500 text-black hover:bg-amber-400 font-bold transition shadow"
+            >
+              <Download className="w-4 h-4" />
+              Baixar PDF (Ordem)
+            </button>
+          )}
           <button
             onClick={handleImprimirOrdem}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-white transition"
           >
             <Printer className="w-4 h-4" />
-            Imprimir Ordem (PDF)
+            Imprimir
           </button>
         </div>
       </div>

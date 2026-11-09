@@ -16,6 +16,8 @@ class Grupo extends Model
     protected $fillable = [
         'user_id',
         'confeccao_id',
+        'cliente_nome',
+        'cliente_whatsapp',
         'nome',
         'descricao',
         'imagem_capa',

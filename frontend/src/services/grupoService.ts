@@ -67,6 +67,39 @@ export const grupoService = {
   urlExportarCsv: (grupoId: number) =>
     `${api.defaults.baseURL}/grupos/${grupoId}/exportar-csv`,
 
+  urlExportarPdf: (grupoId: number) =>
+    `${api.defaults.baseURL}/grupos/${grupoId}/exportar-pdf`,
+
+  baixarPdf: async (grupoId: number, nomeGrupo = 'grupo') => {
+    const res = await api.get(`/grupos/${grupoId}/exportar-pdf`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+    const link = document.createElement('a')
+    link.href = url
+    const safeName = nomeGrupo.replace(/[^a-zA-Z0-9_-]/g, '_')
+    link.setAttribute('download', `ordem_producao_${safeName}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  baixarCsv: async (grupoId: number, nomeGrupo = 'grupo') => {
+    const res = await api.get(`/grupos/${grupoId}/exportar-csv`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url
+    const safeName = nomeGrupo.replace(/[^a-zA-Z0-9_-]/g, '_')
+    link.setAttribute('download', `ordem_producao_${safeName}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
   // Rotas Públicas
   buscarPublico: (token: string, senha?: string) =>
     api.get(`/publico/grupos/${token}`, { params: { senha } }).then((r) => r.data),

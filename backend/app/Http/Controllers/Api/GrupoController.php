@@ -53,7 +53,9 @@ class GrupoController extends Controller
             $busca = $request->busca;
             $query->where(function ($q) use ($busca) {
                 $q->where('nome', 'like', "%{$busca}%")
-                  ->orWhere('descricao', 'like', "%{$busca}%");
+                  ->orWhere('descricao', 'like', "%{$busca}%")
+                  ->orWhere('cliente_nome', 'like', "%{$busca}%")
+                  ->orWhere('cliente_whatsapp', 'like', "%{$busca}%");
             });
         }
 
@@ -85,6 +87,8 @@ class GrupoController extends Controller
     {
         $request->validate([
             'nome' => 'required|string|max:150',
+            'cliente_nome' => 'nullable|string|max:150',
+            'cliente_whatsapp' => 'nullable|string|max:50',
             'descricao' => 'nullable|string',
             'total_esperado' => 'required|integer|min:1',
             'prazo_limite' => 'required|date',
@@ -117,6 +121,8 @@ class GrupoController extends Controller
             $grupo = Grupo::create([
                 'user_id' => $user->isAdmin() && $request->filled('cliente_user_id') ? $request->cliente_user_id : $user->id,
                 'confeccao_id' => $confeccaoId,
+                'cliente_nome' => $request->cliente_nome,
+                'cliente_whatsapp' => $request->cliente_whatsapp,
                 'nome' => $request->nome,
                 'descricao' => $request->descricao,
                 'imagem_capa' => $imagemCapaPath,
@@ -274,6 +280,8 @@ class GrupoController extends Controller
 
         $request->validate([
             'nome' => 'sometimes|required|string|max:150',
+            'cliente_nome' => 'nullable|string|max:150',
+            'cliente_whatsapp' => 'nullable|string|max:50',
             'descricao' => 'nullable|string',
             'total_esperado' => 'sometimes|required|integer|min:1',
             'prazo_limite' => 'nullable|date',
@@ -293,6 +301,8 @@ class GrupoController extends Controller
         }
 
         if ($request->filled('nome')) $grupo->nome = $request->nome;
+        if ($request->has('cliente_nome')) $grupo->cliente_nome = $request->cliente_nome;
+        if ($request->has('cliente_whatsapp')) $grupo->cliente_whatsapp = $request->cliente_whatsapp;
         if ($request->has('descricao')) $grupo->descricao = $request->descricao;
         if ($request->filled('total_esperado')) $grupo->total_esperado = $request->total_esperado;
         if ($request->filled('senha_acesso')) $grupo->senha_acesso = trim($request->senha_acesso);

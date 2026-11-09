@@ -21,6 +21,9 @@ import {
   DollarSign,
   AlertCircle,
   Key,
+  User,
+  MessageCircle,
+  FileDown,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Grupo } from '@/types/grupo'
@@ -192,6 +195,38 @@ export default function GruposIndexPage() {
                   <div className="p-4 sm:p-5 space-y-3">
                     <div>
                       <h3 className="text-base font-bold text-white line-clamp-1">{grupo.nome}</h3>
+
+                      {/* Cliente / Responsável do Grupo */}
+                      {(grupo.cliente_nome || grupo.user?.name) && (
+                        <div className="flex items-center gap-1.5 text-xs text-amber-300/90 font-medium mt-1">
+                          <User className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          <span className="truncate">
+                            Cliente: <strong className="text-white">{grupo.cliente_nome || grupo.user?.name}</strong>
+                          </span>
+                          {grupo.cliente_whatsapp && (
+                            <a
+                              href={`https://wa.me/55${grupo.cliente_whatsapp.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-emerald-400 hover:text-emerald-300 ml-1 inline-flex items-center gap-0.5"
+                              title={`WhatsApp de ${grupo.cliente_nome || 'cliente'}`}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span className="text-[10px] underline">{grupo.cliente_whatsapp}</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Confecção Responsável */}
+                      {grupo.confeccao?.nome && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-0.5">
+                          <Factory className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                          <span className="truncate">Confecção: {grupo.confeccao.nome}</span>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between mt-1 text-[11px] text-zinc-400">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-zinc-500" />
@@ -279,6 +314,13 @@ export default function GruposIndexPage() {
                       title="Duplicar grupo anterior"
                     >
                       <Plus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => grupoService.baixarPdf(grupo.id, grupo.nome)}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 transition"
+                      title="Baixar Ordem de Produção (PDF)"
+                    >
+                      <FileDown className="w-4 h-4" />
                     </button>
                   </div>
 

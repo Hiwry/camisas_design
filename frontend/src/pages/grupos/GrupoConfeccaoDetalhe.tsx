@@ -18,6 +18,9 @@ import {
   Printer,
   Shirt,
   AlertCircle,
+  Download,
+  User,
+  Phone,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { TotaisProducaoResponse } from '@/types/grupo'
@@ -121,11 +124,19 @@ export default function GrupoConfeccaoDetalhe() {
             Exportar CSV
           </button>
           <button
+            onClick={() => grupoService.baixarPdf(grupoId, grupo.nome)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 text-xs font-bold transition shadow"
+            title="Baixar Ordem de Produção (PDF)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Baixar PDF (Ordem)
+          </button>
+          <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition"
           >
             <Printer className="w-3.5 h-3.5" />
-            Imprimir Ordem (PDF)
+            Imprimir
           </button>
         </div>
       </div>
@@ -140,11 +151,35 @@ export default function GrupoConfeccaoDetalhe() {
                 {grupo.status.replace('_', ' ')}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1">
-              Confecção Responsável: <strong className="text-white">{grupo.confeccao?.nome}</strong> • Total:{' '}
-              <strong className="text-amber-400">{grupo.total_pecas || 0} peças</strong> • Prazo limite:{' '}
-              {new Date(grupo.prazo_limite).toLocaleDateString('pt-BR')}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400 mt-1.5">
+              {(grupo.cliente_nome || grupo.user?.name) && (
+                <span className="flex items-center gap-1 text-amber-300 font-medium">
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  Cliente: <strong className="text-white">{grupo.cliente_nome || grupo.user?.name}</strong>
+                  {grupo.cliente_whatsapp && (
+                    <a
+                      href={`https://wa.me/55${grupo.cliente_whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-400 hover:text-emerald-300 ml-1 inline-flex items-center gap-0.5 underline text-[11px]"
+                      title="Chamar no WhatsApp"
+                    >
+                      <Phone className="w-3 h-3" />
+                      {grupo.cliente_whatsapp}
+                    </a>
+                  )}
+                </span>
+              )}
+              <span>
+                Confecção: <strong className="text-white">{grupo.confeccao?.nome}</strong>
+              </span>
+              <span>
+                Total: <strong className="text-amber-400">{grupo.total_pecas || 0} peças</strong>
+              </span>
+              <span>
+                Prazo limite: <strong className="text-zinc-200">{new Date(grupo.prazo_limite).toLocaleDateString('pt-BR')}</strong>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -276,6 +311,9 @@ export default function GrupoConfeccaoDetalhe() {
           dados={dadosProducao}
           onExportarCsv={() => {
             window.open(grupoService.urlExportarCsv(grupoId), '_blank')
+          }}
+          onExportarPdf={() => {
+            grupoService.baixarPdf(grupoId, grupo.nome)
           }}
         />
       )}
