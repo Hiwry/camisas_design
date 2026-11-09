@@ -1,4 +1,6 @@
 import api from './api'
+import { useAuthStore } from '@/store/authStore'
+import toast from 'react-hot-toast'
 import type { Grupo, GrupoParticipante, TotaisProducaoResponse } from '@/types/grupo'
 
 export const grupoService = {
@@ -64,25 +66,67 @@ export const grupoService = {
   totaisProducao: (grupoId: number) =>
     api.get<TotaisProducaoResponse>(`/grupos/${grupoId}/totais-producao`).then((r) => r.data),
 
-  urlExportarCsv: (grupoId: number) =>
-    `${api.defaults.baseURL}/grupos/${grupoId}/exportar-csv`,
+  urlExportarCsv: (grupoId: number) => {
+    const token = useAuthStore.getState().token
+    return `${api.defaults.baseURL}/grupos/${grupoId}/exportar-csv${token ? `?token=${token}` : ''}`
+  },
 
-  urlExportarPdf: (grupoId: number) =>
-    `${api.defaults.baseURL}/grupos/${grupoId}/exportar-pdf`,
+  urlExportarPdf: (grupoId: number) => {
+    const token = useAuthStore.getState().token
+    return `${api.defaults.baseURL}/grupos/${grupoId}/exportar-pdf${token ? `?token=${token}` : ''}`
+  },
+
+  urlImprimirOrdem: (grupoId: number) => {
+    const token = useAuthStore.getState().token
+    return `${api.defaults.baseURL}/grupos/${grupoId}/imprimir-ordem${token ? `?token=${token}` : ''}`
+  },
 
   baixarPdf: async (grupoId: number, nomeGrupo = 'grupo') => {
-    const res = await api.get(`/grupos/${grupoId}/exportar-pdf`, {
-      responseType: 'blob',
-    })
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-    const link = document.createElement('a')
-    link.href = url
-    const safeName = nomeGrupo.replace(/[^a-zA-Z0-9_-]/g, '_')
-    link.setAttribute('download', `ordem_producao_${safeName}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
+    try {
+      const res = await api.get(`/grupos/${grupoId}/exportar-pdf`, {
+        responseType: 'blob',
+      })
+
+      const contentType = (res.headers['content-type'] as string) || ''
+
+      // Se o backend retornou HTML (fallback caso DomPDF ainda não esteja instalado no servidor)
+      if (contentType.includes('text/html') || res.data.type === 'text/html') {
+        const text = await res.data.text()
+        const win = window.open('', '_blank')
+        if (win) {
+          win.document.write(text)
+          win.document.close()
+        } else {
+          window.open(grupoService.urlImprimirOrdem(grupoId), '_blank')
+        }
+        toast('Ordem aberta para impressão / salvar em PDF!', { icon: '🖨️' })
+        return
+      }
+
+      // Se retornou JSON de erro disfarçado
+      if (contentType.includes('application/json')) {
+        const text = await res.data.text()
+        const errJson = JSON.parse(text)
+        throw new Error(errJson.message || 'Erro ao gerar PDF')
+      }
+
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      const safeName = nomeGrupo.replace(/[^a-zA-Z0-9_-]/g, '_')
+      link.setAttribute('download', `ordem_producao_${safeName}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Download do PDF concluído!')
+    } catch (err: unknown) {
+      console.warn('Fallback para ordem de impressão:', err)
+      // Abre a ordem diretamente no navegador formatada para imprimir / salvar em PDF
+      const printUrl = grupoService.urlImprimirOrdem(grupoId)
+      window.open(printUrl, '_blank')
+      toast('Abrindo ordem para imprimir / salvar em PDF...', { icon: '🖨️' })
+    }
   },
 
   baixarCsv: async (grupoId: number, nomeGrupo = 'grupo') => {

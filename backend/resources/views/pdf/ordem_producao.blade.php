@@ -130,9 +130,26 @@
             color: #71717a;
             text-align: center;
         }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
+
+    @if(!empty($isHtml))
+        <div class="no-print" style="background: #18181b; color: #fff; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; font-family: sans-serif;">
+            <div>
+                <strong style="font-size: 13px; color: #e7b32c;">Ordem de Produção & Separação</strong>
+                <div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">Clique no botão ao lado para imprimir ou salvar como PDF no seu computador.</div>
+            </div>
+            <button onclick="window.print()" style="background: #e7b32c; color: #000; font-weight: bold; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                🖨️ Salvar como PDF / Imprimir
+            </button>
+        </div>
+    @endif
 
     <!-- Cabeçalho -->
     <div class="header">
