@@ -62,6 +62,11 @@ class Confeccao extends Model
         return $this->hasMany(Pedido::class);
     }
 
+    public function grupos()
+    {
+        return $this->hasMany(Grupo::class);
+    }
+
     // Helpers
     public function artesDisponiveis(): int
     {

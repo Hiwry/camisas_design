@@ -16,9 +16,16 @@ export function resolveMediaUrl(url: string | undefined | null): string {
     return url
   }
 
+  // Se for um caminho relativo local salvo sem o prefixo /storage/
+  let normalizedUrl = url
+  if (!/^https?:\/\//i.test(normalizedUrl) && !normalizedUrl.includes('/storage/')) {
+    const clean = normalizedUrl.replace(/^\/+/, '')
+    normalizedUrl = `/storage/${clean}`
+  }
+
   // Se contiver caminho para o storage do Laravel (/storage/...)
-  if (url.includes('/storage/')) {
-    const storagePath = url.substring(url.indexOf('/storage/'))
+  if (normalizedUrl.includes('/storage/')) {
+    const storagePath = normalizedUrl.substring(normalizedUrl.indexOf('/storage/'))
 
     // 1. Se VITE_API_URL tiver um origin absoluto explícito configurado (ex: http://localhost:8000/api)
     const viteApi = import.meta.env.VITE_API_URL

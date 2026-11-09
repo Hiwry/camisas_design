@@ -39,6 +39,11 @@ class User extends Authenticatable
         return $this->hasOne(Confeccao::class);
     }
 
+    public function grupos()
+    {
+        return $this->hasMany(Grupo::class);
+    }
+
     // Helpers de role
     public function isAdmin(): bool
     {
@@ -48,5 +53,10 @@ class User extends Authenticatable
     public function isConfeccao(): bool
     {
         return $this->role === 'confeccao';
+    }
+
+    public function isCliente(): bool
+    {
+        return $this->role === 'cliente';
     }
 }

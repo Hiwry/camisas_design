@@ -36,6 +36,15 @@ class Pedido extends Model
         'valor' => 'float',
     ];
 
+    protected $appends = [
+        'cliente_nome',
+        'cliente_whatsapp',
+        'cliente_email',
+        'nome_cliente',
+        'whatsapp_cliente',
+        'email_cliente',
+    ];
+
     // Status disponíveis
     const STATUS = [
         'aguardando_briefing',
@@ -57,13 +66,16 @@ class Pedido extends Model
 
     const STATUS_OCULTOS_KANBAN = ['finalizado', 'cancelado'];
 
-    // Gera token único ao criar
+    // Gera token único ao criar e sincroniza campos de cliente
     protected static function booted(): void
     {
         static::creating(function (Pedido $pedido) {
             if (empty($pedido->token_aprovacao)) {
                 $pedido->token_aprovacao = Str::random(64);
             }
+        });
+
+        static::saving(function (Pedido $pedido) {
             if (empty($pedido->attributes['whatsapp_cliente']) && !empty($pedido->attributes['cliente_whatsapp'])) {
                 $pedido->attributes['whatsapp_cliente'] = $pedido->attributes['cliente_whatsapp'];
             }

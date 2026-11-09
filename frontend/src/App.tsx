@@ -14,6 +14,11 @@ import ShopPage from '@/pages/ShopPage'
 import GerenciarShopPage from '@/pages/GerenciarShopPage'
 import PortfolioPage from '@/pages/PortfolioPage'
 import RastreioPage from '@/pages/RastreioPage'
+import GruposIndexPage from '@/pages/grupos/GruposIndexPage'
+import GrupoAdminDetalhe from '@/pages/grupos/GrupoAdminDetalhe'
+import GrupoConfeccaoDetalhe from '@/pages/grupos/GrupoConfeccaoDetalhe'
+import GrupoPublicoPage from '@/pages/public/GrupoPublicoPage'
+import ParticipanteEdicaoPage from '@/pages/public/ParticipanteEdicaoPage'
 import Layout from '@/components/layout/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -55,6 +60,8 @@ export default function App() {
         <Route path="/catalogo" element={<PortfolioPage isPublic />} />
         <Route path="/rastreio" element={<RastreioPage />} />
         <Route path="/acompanhar" element={<RastreioPage />} />
+        <Route path="/grupo/:token" element={<GrupoPublicoPage />} />
+        <Route path="/grupo/:token/participante/:tokenEdicao" element={<ParticipanteEdicaoPage />} />
 
         {/* ── Rotas Privadas (Sistema com Sidebar) ── */}
         <Route
@@ -83,6 +90,9 @@ export default function App() {
           />
           <Route path="/pedidos" element={<PedidosPage />} />
           <Route path="/pedidos/:id" element={<PedidoDetalhe />} />
+          <Route path="/grupos" element={<GruposIndexPage />} />
+          <Route path="/grupos/:id" element={<GrupoAdminDetalhe />} />
+          <Route path="/grupos/:id/confeccao" element={<GrupoConfeccaoDetalhe />} />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/revisar-arte" element={<RevisaoArtePage />} />
           <Route

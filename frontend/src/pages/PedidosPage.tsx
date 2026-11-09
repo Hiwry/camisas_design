@@ -35,6 +35,10 @@ import {
   Zap,
   Download,
   Check,
+  User,
+  Phone,
+  Mail,
+  MessageCircle,
 } from 'lucide-react'
 import { format, parseISO, isPast, isBefore, startOfToday, addDays, addHours } from 'date-fns'
 import clsx from 'clsx'
@@ -263,7 +267,7 @@ export default function PedidosPage() {
   // ── FILTRAGEM INTELIGENTE DOS PEDIDOS ──
   const pedidosFiltrados = useMemo(() => {
     return pedidos.filter((p) => {
-      // 1. Busca textual (nome do pedido, #id, confecção, cliente)
+      // 1. Busca textual (nome do pedido, #id, confecção, cliente, telefone/whatsapp, email)
       const termo = search.toLowerCase().trim()
       const matchBusca =
         !termo ||
@@ -272,7 +276,11 @@ export default function PedidosPage() {
         `#${p.id}`.includes(termo) ||
         (p.confeccao?.nome && p.confeccao.nome.toLowerCase().includes(termo)) ||
         (p.nome_cliente && p.nome_cliente.toLowerCase().includes(termo)) ||
-        (p.cliente_nome && p.cliente_nome.toLowerCase().includes(termo))
+        (p.cliente_nome && p.cliente_nome.toLowerCase().includes(termo)) ||
+        (p.cliente_whatsapp && p.cliente_whatsapp.toLowerCase().includes(termo)) ||
+        (p.whatsapp_cliente && p.whatsapp_cliente.toLowerCase().includes(termo)) ||
+        (p.cliente_email && p.cliente_email.toLowerCase().includes(termo)) ||
+        (p.email_cliente && p.email_cliente.toLowerCase().includes(termo))
 
       // 2. Filtro de Status
       const matchStatus = statusFilter === 'todos' || p.status === statusFilter
@@ -641,7 +649,7 @@ export default function PedidosPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#909098]" />
               <input
                 type="text"
-                placeholder="Buscar pedido ou confecção..."
+                placeholder="Buscar pedido, cliente ou confecção..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 rounded-lg border focus:outline-none transition-colors"
@@ -727,7 +735,7 @@ export default function PedidosPage() {
 
         {/* ── TABELA DESKTOP ── */}
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs min-w-[780px]">
+          <table className="w-full text-left text-xs min-w-[900px]">
             <thead>
               <tr style={{ backgroundColor: '#151516', borderBottom: '1px solid #303034' }}>
                 <th className="px-5 py-3.5 text-[11px] font-semibold text-[#909098] uppercase tracking-wider">
@@ -735,6 +743,9 @@ export default function PedidosPage() {
                 </th>
                 <th className="px-5 py-3.5 text-[11px] font-semibold text-[#909098] uppercase tracking-wider">
                   CONFECÇÃO
+                </th>
+                <th className="px-5 py-3.5 text-[11px] font-semibold text-[#909098] uppercase tracking-wider">
+                  CLIENTE / CONTATO
                 </th>
                 <th className="px-5 py-3.5 text-[11px] font-semibold text-[#909098] uppercase tracking-wider">
                   TIPO
@@ -766,6 +777,12 @@ export default function PedidosPage() {
                       <div className="w-28 h-4 bg-[#1D1D1F] rounded animate-pulse" />
                     </td>
                     <td className="px-5 py-4">
+                      <div className="space-y-1.5">
+                        <div className="w-24 h-4 bg-[#1D1D1F] rounded animate-pulse" />
+                        <div className="w-20 h-3 bg-[#1D1D1F] rounded animate-pulse" />
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
                       <div className="w-20 h-4 bg-[#1D1D1F] rounded animate-pulse" />
                     </td>
                     <td className="px-5 py-4">
@@ -782,7 +799,7 @@ export default function PedidosPage() {
               ) : pedidosPaginados.length === 0 ? (
                 // Empty state
                 <tr>
-                  <td colSpan={6} className="text-center py-16 px-4">
+                  <td colSpan={7} className="text-center py-16 px-4">
                     <div className="max-w-sm mx-auto flex flex-col items-center">
                       <div
                         className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
@@ -850,6 +867,47 @@ export default function PedidosPage() {
                         <span className="text-xs text-[#D1D1D6] font-medium">
                           {p.confeccao?.nome || '—'}
                         </span>
+                      </td>
+
+                      {/* 3. CLIENTE / CONTATO */}
+                      <td className="px-5 py-4">
+                        {(() => {
+                          const nome = p.cliente_nome || p.nome_cliente
+                          const whats = p.cliente_whatsapp || p.whatsapp_cliente
+                          const email = p.cliente_email || p.email_cliente
+                          const cleanWhats = whats ? whats.replace(/\D/g, '') : ''
+
+                          if (!nome && !whats && !email) {
+                            return <span className="text-xs text-[#606068] italic">Não informado</span>
+                          }
+
+                          return (
+                            <div className="flex flex-col gap-0.5 min-w-[130px]">
+                              <span className="font-semibold text-xs text-[#F5F5F6] truncate max-w-[170px]" title={nome || ''}>
+                                {nome || <span className="text-zinc-500 italic font-normal">Sem nome</span>}
+                              </span>
+
+                              {cleanWhats ? (
+                                <a
+                                  href={`https://wa.me/55${cleanWhats}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors w-fit group/wpp"
+                                  title="Clique para conversar no WhatsApp"
+                                >
+                                  <Phone className="w-3 h-3 text-emerald-400 group-hover/wpp:scale-110 transition-transform flex-shrink-0" />
+                                  <span className="underline decoration-emerald-500/40 underline-offset-2">{whats}</span>
+                                </a>
+                              ) : email ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-[#909098] truncate max-w-[170px]" title={email}>
+                                  <Mail className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                                  <span className="truncate">{email}</span>
+                                </span>
+                              ) : null}
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* 3. TIPO */}
@@ -1088,6 +1146,26 @@ export default function PedidosPage() {
             <span>Copiar link de aprovação</span>
           </button>
 
+          {/* 5.1 Conversar no WhatsApp */}
+          {(() => {
+            const whats = menuAnchor.pedido.cliente_whatsapp || menuAnchor.pedido.whatsapp_cliente
+            if (!whats) return null
+            const cleanWhats = whats.replace(/\D/g, '')
+            if (!cleanWhats) return null
+            return (
+              <a
+                href={`https://wa.me/55${cleanWhats}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuAnchor(null)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-950/40 transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Conversar no WhatsApp</span>
+              </a>
+            )
+          })()}
+
           {/* 6. Visualizar no Kanban */}
           {isAdmin() && (
             <button
@@ -1247,14 +1325,29 @@ export default function PedidosPage() {
             </div>
 
             {/* Cliente (Opcional) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
                   Nome do cliente <span className="text-[#909098] font-normal">(opcional)</span>
                 </label>
                 <input
-                  name="nome_cliente"
+                  name="cliente_nome"
                   placeholder="Ex: João da Silva"
+                  className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
+                  style={{
+                    backgroundColor: '#1D1D1F',
+                    borderColor: '#303034',
+                    color: '#F5F5F6',
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
+                  WhatsApp / Contato <span className="text-[#909098] font-normal">(opcional)</span>
+                </label>
+                <input
+                  name="cliente_whatsapp"
+                  placeholder="Ex: 11999998888"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
                   style={{
                     backgroundColor: '#1D1D1F',
@@ -1268,7 +1361,7 @@ export default function PedidosPage() {
                   Email do cliente <span className="text-[#909098] font-normal">(opcional)</span>
                 </label>
                 <input
-                  name="email_cliente"
+                  name="cliente_email"
                   type="email"
                   placeholder="joao@exemplo.com"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
@@ -1573,8 +1666,9 @@ export default function PedidosPage() {
                   Nome do cliente
                 </label>
                 <input
-                  name="nome_cliente"
-                  defaultValue={pedidoParaEditar.nome_cliente || pedidoParaEditar.cliente_nome || ''}
+                  name="cliente_nome"
+                  defaultValue={pedidoParaEditar.cliente_nome || pedidoParaEditar.nome_cliente || ''}
+                  placeholder="Nome do cliente"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
                   style={{
                     backgroundColor: '#1D1D1F',
@@ -1588,9 +1682,10 @@ export default function PedidosPage() {
                   Email do cliente
                 </label>
                 <input
-                  name="email_cliente"
+                  name="cliente_email"
                   type="email"
-                  defaultValue={pedidoParaEditar.email_cliente || pedidoParaEditar.cliente_email || ''}
+                  defaultValue={pedidoParaEditar.cliente_email || pedidoParaEditar.email_cliente || ''}
+                  placeholder="cliente@exemplo.com"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
                   style={{
                     backgroundColor: '#1D1D1F',
@@ -1604,11 +1699,11 @@ export default function PedidosPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
-                  WhatsApp do cliente
+                  WhatsApp / Contato do cliente
                 </label>
                 <input
-                  name="whatsapp_cliente"
-                  defaultValue={pedidoParaEditar.whatsapp_cliente || pedidoParaEditar.cliente_whatsapp || ''}
+                  name="cliente_whatsapp"
+                  defaultValue={pedidoParaEditar.cliente_whatsapp || pedidoParaEditar.whatsapp_cliente || ''}
                   placeholder="(00) 00000-0000"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
                   style={{

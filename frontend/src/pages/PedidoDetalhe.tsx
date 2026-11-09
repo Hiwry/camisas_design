@@ -46,6 +46,7 @@ import {
   FileCode,
   FileArchive,
   Share2,
+  Phone,
 } from 'lucide-react'
 import RevisaoArteModal from '@/components/RevisaoArteModal'
 import { resolveMediaUrl } from '@/lib/url'
@@ -710,14 +711,32 @@ export default function PedidoDetalhe() {
                   {TIPO_LABEL[pedido.tipo_impressao] || pedido.tipo_impressao}
                 </span>
 
-                {(pedido.cliente_nome || pedido.nome_cliente) && (
-                  <>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-zinc-400">
-                      Cliente: <strong className="text-zinc-300 font-medium">{pedido.cliente_nome || pedido.nome_cliente}</strong>
-                    </span>
-                  </>
-                )}
+                {(() => {
+                  const nome = pedido.cliente_nome || pedido.nome_cliente
+                  const whats = pedido.cliente_whatsapp || pedido.whatsapp_cliente
+                  const cleanWhats = whats ? whats.replace(/\D/g, '') : ''
+                  if (!nome && !whats) return null
+                  return (
+                    <>
+                      <span className="text-zinc-600">•</span>
+                      <span className="text-zinc-400 flex items-center gap-1.5 flex-wrap">
+                        Cliente: <strong className="text-zinc-200 font-medium">{nome || 'Não informado'}</strong>
+                        {cleanWhats && (
+                          <a
+                            href={`https://wa.me/55${cleanWhats}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 hover:bg-emerald-900/60 hover:text-emerald-300 transition-colors ml-1"
+                            title="Conversar no WhatsApp"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-400" />
+                            <span>{whats}</span>
+                          </a>
+                        )}
+                      </span>
+                    </>
+                  )
+                })()}
               </div>
             </div>
 

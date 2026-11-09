@@ -14,6 +14,11 @@ use App\Http\Controllers\RevisaoArteController;
 use App\Http\Controllers\RevisaoImagemController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\Api\Publico\RastreioController;
+use App\Http\Controllers\Api\GrupoController;
+use App\Http\Controllers\Api\GrupoPublicoController;
+use App\Http\Controllers\Api\GrupoParticipanteController;
+use App\Http\Controllers\Api\GrupoConfeccaoController;
+use App\Http\Controllers\Api\GrupoExportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -46,6 +51,19 @@ Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [Portf
 
 // Rastreio público de pedidos pelo WhatsApp / Telefone
 Route::middleware('throttle:30,1')->post('/publico/rastreio', [RastreioController::class, 'rastrear']);
+
+// Rotas públicas do módulo Grupos de Camisas
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/publico/grupos/{token}', [GrupoPublicoController::class, 'showPublico']);
+    Route::get('/publico/grupos/{token}/verificar-numero', [GrupoPublicoController::class, 'verificarNumero']);
+    Route::get('/publico/grupos/{token}/participante/{tokenEdicao}', [GrupoPublicoController::class, 'consultarEdicao']);
+});
+Route::middleware('throttle:30,1')->group(function () {
+    Route::post('/publico/grupos/{token}/validar-senha', [GrupoPublicoController::class, 'validarSenha']);
+    Route::post('/publico/grupos/{token}/participar', [GrupoPublicoController::class, 'participar']);
+    Route::put('/publico/grupos/{token}/participante/{tokenEdicao}', [GrupoPublicoController::class, 'salvarEdicao']);
+    Route::post('/publico/grupos/{token}/solicitar-fora-prazo', [GrupoPublicoController::class, 'solicitarForaPrazo']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -152,4 +170,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/whatsapp/configurar-webhook',    [WhatsAppController::class, 'configurarWebhook']);
         Route::get('/whatsapp/webhook-status',         [WhatsAppController::class, 'webhookStatus']);
     });
+
+    // Módulo Grupos de Camisas (Admin, Cliente e Confecção)
+    Route::get('/grupos',                     [GrupoController::class, 'index']);
+    Route::post('/grupos',                    [GrupoController::class, 'store']);
+    Route::get('/grupos/{id}',                [GrupoController::class, 'show']);
+    Route::put('/grupos/{id}',                [GrupoController::class, 'update']);
+    Route::delete('/grupos/{id}',             [GrupoController::class, 'destroy']);
+    Route::post('/grupos/{id}/duplicar',      [GrupoController::class, 'duplicar']);
+    Route::post('/grupos/{id}/confirmar',     [GrupoController::class, 'confirmar']);
+    Route::post('/grupos/{id}/reabrir',       [GrupoController::class, 'reabrir']);
+
+    // Participantes e Pagamentos
+    Route::post('/grupos/{id}/participantes',                                        [GrupoParticipanteController::class, 'store']);
+    Route::put('/grupos/{id}/participantes/{participanteId}',                        [GrupoParticipanteController::class, 'update']);
+    Route::delete('/grupos/{id}/participantes/{participanteId}',                     [GrupoParticipanteController::class, 'destroy']);
+    Route::post('/grupos/{id}/participantes/{participanteId}/pagamentos',            [GrupoParticipanteController::class, 'registrarPagamento']);
+    Route::delete('/grupos/{id}/participantes/{participanteId}/pagamentos/{pagamentoId}', [GrupoParticipanteController::class, 'excluirPagamento']);
+    Route::post('/grupos/{id}/solicitacoes/{solicitacaoId}/avaliar',                 [GrupoParticipanteController::class, 'avaliarSolicitacao']);
+
+    // Confecção, Produção e Exportações
+    Route::post('/grupos/{id}/tabela-medidas',    [GrupoConfeccaoController::class, 'salvarTabelaMedidas']);
+    Route::post('/grupos/{id}/status-producao',   [GrupoConfeccaoController::class, 'atualizarStatusProducao']);
+    Route::get('/grupos/{id}/totais-producao',    [GrupoExportController::class, 'totaisProducao']);
+    Route::get('/grupos/{id}/exportar-csv',       [GrupoExportController::class, 'exportarCsv']);
 });

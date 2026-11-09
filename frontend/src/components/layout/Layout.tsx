@@ -6,7 +6,7 @@ import { authService, creditoService } from '@/services/api'
 import ModalComprarCreditos from '@/components/ModalComprarCreditos'
 import {
   LayoutDashboard, Columns, ClipboardList, Factory, LogOut, Sparkles, Smartphone, CheckCircle2, Coins, Plus, ShoppingBag, Package, Palette,
-  Menu, X, ChevronLeft, ChevronRight,
+  Menu, X, ChevronLeft, ChevronRight, Users2,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -51,6 +51,7 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
       { to: '/admin/shop/produtos', icon: Package,          label: 'Gerenciar Shop' },
     ] : []),
     { to: '/pedidos', icon: ClipboardList, label: 'Pedidos' },
+    { to: '/grupos',  icon: Users2,        label: 'Grupos de Camisas' },
     { to: '/portfolio', icon: Palette, label: 'Portfólio / Catálogo' },
     { to: '/shop', icon: ShoppingBag, label: 'Shop Avulso' },
     { to: '/revisar-arte', icon: Sparkles, label: 'Revisar Arte IA' },

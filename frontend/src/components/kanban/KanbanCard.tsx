@@ -18,6 +18,8 @@ import {
   Eye,
   ArrowRight,
   FileText,
+  Phone,
+  User,
 } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
@@ -282,10 +284,33 @@ export default function KanbanCard({ card, overlay, onMover }: Props) {
         {card.titulo}
       </h4>
 
-      {/* ── 4. CONFECÇÃO ── */}
-      <p className="text-xs text-[#909098] truncate mb-2.5">
-        {card.confeccao?.nome || 'Confecção'}
-      </p>
+      {/* ── 4. CONFECÇÃO & CLIENTE ── */}
+      <div className="text-xs space-y-0.5 mb-2.5">
+        <p className="text-[#909098] truncate">
+          {card.confeccao?.nome || 'Confecção'}
+        </p>
+        {(() => {
+          const nome = card.cliente_nome || (card as any).nome_cliente
+          const whats = card.cliente_whatsapp || (card as any).whatsapp_cliente
+          const cleanWhats = whats ? whats.replace(/\D/g, '') : ''
+          if (!nome && !whats) return null
+          return (
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-300">
+              <span className="truncate font-medium">{nome || 'Cliente'}</span>
+              {cleanWhats && (
+                <button
+                  type="button"
+                  onClick={handleAbrirWhatsapp}
+                  className="inline-flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300 ml-auto flex-shrink-0"
+                  title="Abrir WhatsApp"
+                >
+                  <Phone className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )
+        })()}
+      </div>
 
       {/* ── 5. TAGS & BADGES (Tipo de serviço, etc) ── */}
       <div className="flex items-center gap-1.5 flex-wrap mb-3">

@@ -58,20 +58,43 @@ class PedidoController extends Controller
             return response()->json(['message' => 'Confecção não encontrada para este usuário.'], 422);
         }
 
+        // Normaliza campos de cliente
+        if ($request->filled('nome_cliente') && !$request->filled('cliente_nome')) {
+            $request->merge(['cliente_nome' => $request->nome_cliente]);
+        }
+        if ($request->filled('cliente_nome') && !$request->filled('nome_cliente')) {
+            $request->merge(['nome_cliente' => $request->cliente_nome]);
+        }
+        if ($request->filled('whatsapp_cliente') && !$request->filled('cliente_whatsapp')) {
+            $request->merge(['cliente_whatsapp' => $request->whatsapp_cliente]);
+        }
+        if ($request->filled('cliente_whatsapp') && !$request->filled('whatsapp_cliente')) {
+            $request->merge(['whatsapp_cliente' => $request->cliente_whatsapp]);
+        }
+        if ($request->filled('email_cliente') && !$request->filled('cliente_email')) {
+            $request->merge(['cliente_email' => $request->email_cliente]);
+        }
+        if ($request->filled('cliente_email') && !$request->filled('email_cliente')) {
+            $request->merge(['email_cliente' => $request->cliente_email]);
+        }
+
         // Injeta no request para validação e uso posterior
         $request->merge(['confeccao_id' => $confeccaoId]);
 
         $request->validate([
-            'confeccao_id'    => 'required|exists:confeccoes,id',
-            'titulo'          => 'required|string|max:255',
-            'tipo_impressao'  => 'required|in:sublimacao,bordado,serigrafia',
-            'observacoes'     => 'nullable|string',
-            'referencias'     => 'nullable',
-            'prazo'           => 'nullable|date',
-            'valor'           => 'nullable|numeric|min:0',
-            'cliente_nome'    => 'nullable|string|max:255',
-            'cliente_email'   => 'nullable|email',
-            'cliente_whatsapp'=> 'nullable|string|max:20',
+            'confeccao_id'     => 'required|exists:confeccoes,id',
+            'titulo'           => 'required|string|max:255',
+            'tipo_impressao'   => 'required|in:sublimacao,bordado,serigrafia',
+            'observacoes'      => 'nullable|string',
+            'referencias'      => 'nullable',
+            'prazo'            => 'nullable|date',
+            'valor'            => 'nullable|numeric|min:0',
+            'cliente_nome'     => 'nullable|string|max:255',
+            'cliente_email'    => 'nullable|email',
+            'cliente_whatsapp' => 'nullable|string|max:50',
+            'nome_cliente'     => 'nullable|string|max:255',
+            'email_cliente'    => 'nullable|email',
+            'whatsapp_cliente' => 'nullable|string|max:50',
         ]);
 
         $confeccao = Confeccao::findOrFail($confeccaoId);
@@ -110,6 +133,7 @@ class PedidoController extends Controller
             'confeccao_id', 'titulo', 'tipo_impressao', 'observacoes',
             'prazo', 'valor',
             'cliente_nome', 'cliente_email', 'cliente_whatsapp',
+            'nome_cliente', 'email_cliente', 'whatsapp_cliente',
         ]);
         $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
 
@@ -126,6 +150,26 @@ class PedidoController extends Controller
     {
         $this->authorizePedido($pedido);
 
+        // Normaliza campos de cliente
+        if ($request->filled('nome_cliente') && !$request->filled('cliente_nome')) {
+            $request->merge(['cliente_nome' => $request->nome_cliente]);
+        }
+        if ($request->filled('cliente_nome') && !$request->filled('nome_cliente')) {
+            $request->merge(['nome_cliente' => $request->cliente_nome]);
+        }
+        if ($request->filled('whatsapp_cliente') && !$request->filled('cliente_whatsapp')) {
+            $request->merge(['cliente_whatsapp' => $request->whatsapp_cliente]);
+        }
+        if ($request->filled('cliente_whatsapp') && !$request->filled('whatsapp_cliente')) {
+            $request->merge(['whatsapp_cliente' => $request->cliente_whatsapp]);
+        }
+        if ($request->filled('email_cliente') && !$request->filled('cliente_email')) {
+            $request->merge(['cliente_email' => $request->email_cliente]);
+        }
+        if ($request->filled('cliente_email') && !$request->filled('email_cliente')) {
+            $request->merge(['email_cliente' => $request->cliente_email]);
+        }
+
         $request->validate([
             'titulo'           => 'sometimes|string|max:255',
             'tipo_impressao'   => 'sometimes|in:sublimacao,bordado,serigrafia',
@@ -135,13 +179,17 @@ class PedidoController extends Controller
             'valor'            => 'nullable|numeric|min:0',
             'cliente_nome'     => 'nullable|string|max:255',
             'cliente_email'    => 'nullable|email',
-            'cliente_whatsapp' => 'nullable|string|max:20',
+            'cliente_whatsapp' => 'nullable|string|max:50',
+            'nome_cliente'     => 'nullable|string|max:255',
+            'email_cliente'    => 'nullable|email',
+            'whatsapp_cliente' => 'nullable|string|max:50',
         ]);
 
         $pedido->update($request->only([
             'titulo', 'tipo_impressao', 'observacoes',
             'referencias', 'prazo', 'valor',
             'cliente_nome', 'cliente_email', 'cliente_whatsapp',
+            'nome_cliente', 'email_cliente', 'whatsapp_cliente',
         ]));
 
         return response()->json($pedido->fresh('confeccao'));

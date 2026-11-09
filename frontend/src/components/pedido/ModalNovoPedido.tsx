@@ -277,7 +277,7 @@ export default function ModalNovoPedido({ onClose, onSuccess }: ModalNovoPedidoP
             </div>
 
             {/* Cliente (Opcional) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
                   Nome do Cliente (opcional)
@@ -295,11 +295,27 @@ export default function ModalNovoPedido({ onClose, onSuccess }: ModalNovoPedidoP
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
-                  WhatsApp Cliente (com DDD)
+                  WhatsApp (com DDD)
                 </label>
                 <input
                   name="cliente_whatsapp"
                   placeholder="Ex: 11999998888"
+                  className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
+                  style={{
+                    backgroundColor: '#1D1D1F',
+                    borderColor: '#303034',
+                    color: '#F5F5F6',
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5">
+                  Email (opcional)
+                </label>
+                <input
+                  name="cliente_email"
+                  type="email"
+                  placeholder="Ex: cliente@email.com"
                   className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border focus:outline-none"
                   style={{
                     backgroundColor: '#1D1D1F',
