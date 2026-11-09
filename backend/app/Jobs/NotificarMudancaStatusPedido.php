@@ -5,13 +5,12 @@ namespace App\Jobs;
 use App\Models\Pedido;
 use App\Services\WhatsAppService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class NotificarMudancaStatusPedido implements ShouldQueue
+class NotificarMudancaStatusPedido
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -20,12 +19,13 @@ class NotificarMudancaStatusPedido implements ShouldQueue
         public string $novoStatus
     ) {}
 
-    public function handle(WhatsAppService $wa): void
+    public function handle(WhatsAppService $wa): array
     {
         try {
-            $wa->notificarMudancaStatus($this->pedido, $this->novoStatus);
+            return $wa->notificarMudancaStatus($this->pedido, $this->novoStatus);
         } catch (\Throwable $e) {
             Log::error("Erro no Job NotificarMudancaStatusPedido para Pedido #{$this->pedido->id}: " . $e->getMessage());
+            return ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => $e->getMessage()];
         }
     }
 }

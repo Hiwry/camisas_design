@@ -100,13 +100,20 @@ class KanbanController extends Controller
         $pedido->save();
 
         // Dispara notificação automática por WhatsApp se houve mudança de coluna/status
+        $notificacao = null;
         if ($antigoStatus !== $novoStatus) {
-            \App\Jobs\NotificarMudancaStatusPedido::dispatch($pedido, $novoStatus);
+            try {
+                $notificacao = app(\App\Services\WhatsAppService::class)->notificarMudancaStatus($pedido, $novoStatus);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Erro ao enviar notificação WhatsApp para Pedido #{$pedido->id}: " . $e->getMessage());
+                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => $e->getMessage()];
+            }
         }
 
         return response()->json([
-            'message' => 'Status atualizado com sucesso e notificação disparada.',
-            'status'  => $pedido->status,
+            'message'     => 'Status atualizado com sucesso.',
+            'status'      => $pedido->status,
+            'notificacao' => $notificacao,
         ]);
     }
 }

@@ -99,9 +99,24 @@ export default function KanbanBoard() {
   const moverMutation = useMutation({
     mutationFn: ({ pedidoId, novoStatus }: { pedidoId: number; novoStatus: string }) =>
       kanbanService.mover(pedidoId, novoStatus),
-    onSuccess: (_, vars) => {
+    onSuccess: (data: any, vars) => {
       const etapaNome = ETAPAS_LABELS[vars.novoStatus] ?? vars.novoStatus
-      toast.success(`Pedido movido para "${etapaNome}"! WhatsApp disparado.`, { icon: '🚀' })
+      const notif = data?.notificacao
+
+      if (notif?.enviado) {
+        toast.success(`Pedido movido para "${etapaNome}" e WhatsApp enviado!`, { icon: '✅' })
+      } else if (notif?.motivo === 'sem_numero') {
+        toast(`Pedido movido para "${etapaNome}". O pedido não tem WhatsApp cadastrado.`, { icon: '⚠️' })
+      } else if (notif?.motivo === 'whatsapp_desconectado') {
+        toast(`Pedido movido para "${etapaNome}". O WhatsApp está desconectado no painel.`, { icon: '📱' })
+      } else if (notif?.motivo === 'nao_configurado') {
+        toast(`Pedido movido para "${etapaNome}". (WhatsApp não configurado)`, { icon: 'ℹ️' })
+      } else if (notif?.motivo === 'falha_envio' || notif?.motivo === 'erro_excecao') {
+        toast.error(`Pedido movido para "${etapaNome}", mas o envio de WhatsApp falhou.`)
+      } else {
+        toast.success(`Pedido movido para "${etapaNome}"!`, { icon: '🚀' })
+      }
+
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
       queryClient.invalidateQueries({ queryKey: ['pedidos'] })
     },

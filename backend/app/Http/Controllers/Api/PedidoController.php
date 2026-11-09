@@ -202,9 +202,25 @@ class PedidoController extends Controller
             'status' => 'required|in:' . implode(',', Pedido::STATUS),
         ]);
 
-        $pedido->update(['status' => $request->status]);
+        $antigoStatus = $pedido->status;
+        $novoStatus   = $request->status;
 
-        return response()->json($pedido->fresh(['confeccao', 'arteAtiva', 'ultimaAprovacao']));
+        $pedido->update(['status' => $novoStatus]);
+
+        $notificacao = null;
+        if ($antigoStatus !== $novoStatus) {
+            try {
+                $notificacao = app(\App\Services\WhatsAppService::class)->notificarMudancaStatus($pedido, $novoStatus);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Erro ao enviar notificação WhatsApp para Pedido #{$pedido->id}: " . $e->getMessage());
+                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => $e->getMessage()];
+            }
+        }
+
+        $dados = $pedido->fresh(['confeccao', 'arteAtiva', 'ultimaAprovacao'])->toArray();
+        $dados['notificacao'] = $notificacao;
+
+        return response()->json($dados);
     }
 
     public function linkAprovacao(Pedido $pedido)

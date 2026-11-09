@@ -168,6 +168,16 @@ class WhatsAppService
             return ['enviado' => false, 'motivo' => 'nao_configurado'];
         }
 
+        $statusConn = $this->status();
+        if (($statusConn['state'] ?? '') !== 'open') {
+            Log::warning("WhatsApp não conectado (state: " . ($statusConn['state'] ?? 'close') . "). Notificação do pedido #{$pedido->id} não enviada.");
+            return [
+                'enviado' => false,
+                'motivo'  => 'whatsapp_desconectado',
+                'state'   => $statusConn['state'] ?? 'close',
+            ];
+        }
+
         if (!$pedido->relationLoaded('confeccao')) {
             $pedido->load('confeccao.user');
         }
@@ -228,14 +238,36 @@ class WhatsAppService
             $destinatarios[] = $confeccaoWa;
         }
 
-        // Remove duplicados normalizados
+        if (empty($destinatarios)) {
+            Log::warning("WhatsApp: Pedido #{$pedido->id} não possui nenhum número de WhatsApp cadastrado.");
+            return [
+                'enviado' => false,
+                'motivo'  => 'sem_numero',
+            ];
+        }
+
+        // Remove duplicados e normaliza
+        $numerosValidos = [];
+        foreach ($destinatarios as $num) {
+            $limpo = preg_replace('/[^0-9]/', '', $num);
+            if (!empty($limpo) && strlen($limpo) >= 8) {
+                $numerosValidos[] = $limpo;
+            }
+        }
+        $numerosValidos = array_unique($numerosValidos);
+
+        if (empty($numerosValidos)) {
+            Log::warning("WhatsApp: Números informados para o pedido #{$pedido->id} são inválidos: " . implode(', ', $destinatarios));
+            return [
+                'enviado' => false,
+                'motivo'  => 'numero_invalido',
+            ];
+        }
+
         $enviados = [];
         $falhas   = [];
 
-        foreach ($destinatarios as $num) {
-            $limpo = preg_replace('/[^0-9]/', '', $num);
-            if (empty($limpo) || strlen($limpo) < 8) continue;
-
+        foreach ($numerosValidos as $limpo) {
             $ok = $this->enviarTexto($limpo, $mensagem);
             if ($ok) {
                 $enviados[] = $limpo;
@@ -248,6 +280,7 @@ class WhatsAppService
 
         return [
             'enviado'       => count($enviados) > 0,
+            'motivo'        => count($enviados) > 0 ? 'sucesso' : 'falha_envio',
             'destinatarios' => $enviados,
             'falhas'        => $falhas,
         ];
