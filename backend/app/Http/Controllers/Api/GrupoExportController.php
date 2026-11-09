@@ -14,7 +14,7 @@ class GrupoExportController extends Controller
      */
     public function totaisProducao(Request $request, $grupoId)
     {
-        $grupo = Grupo::with(['modelos', 'participantes.modelo'])->findOrFail($grupoId);
+        $grupo = Grupo::with(['modelos', 'participantes.modelo', 'confeccao'])->findOrFail($grupoId);
         $user = $request->user();
 
         // Permissão
@@ -96,6 +96,9 @@ class GrupoExportController extends Controller
             'grupo' => [
                 'id' => $grupo->id,
                 'nome' => $grupo->nome,
+                'cliente_nome' => $grupo->cliente_nome,
+                'cliente_whatsapp' => $grupo->cliente_whatsapp,
+                'confeccao_nome' => $grupo->confeccao?->nome,
                 'status' => $grupo->status,
                 'prazo_limite' => $grupo->prazo_limite,
                 'total_esperado' => $grupo->total_esperado,

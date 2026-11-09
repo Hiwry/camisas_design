@@ -2,6 +2,7 @@ import api from './api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import type { Grupo, GrupoParticipante, TotaisProducaoResponse } from '@/types/grupo'
+import { gerarEBaixarPdfOrdem } from '@/lib/pdfOrdemProducao'
 
 export const grupoService = {
   // Autenticado: listagem e CRUD
@@ -82,50 +83,21 @@ export const grupoService = {
   },
 
   baixarPdf: async (grupoId: number, nomeGrupo = 'grupo') => {
+    const toastId = toast.loading('Gerando PDF da Ordem de Produção...')
     try {
-      const res = await api.get(`/grupos/${grupoId}/exportar-pdf`, {
-        responseType: 'blob',
-      })
+      // 1. Busca os dados consolidados da produção
+      const dados = await grupoService.totaisProducao(grupoId)
 
-      const contentType = (res.headers['content-type'] as string) || ''
-
-      // Se o backend retornou HTML (fallback caso DomPDF ainda não esteja instalado no servidor)
-      if (contentType.includes('text/html') || res.data.type === 'text/html') {
-        const text = await res.data.text()
-        const win = window.open('', '_blank')
-        if (win) {
-          win.document.write(text)
-          win.document.close()
-        } else {
-          window.open(grupoService.urlImprimirOrdem(grupoId), '_blank')
-        }
-        toast('Ordem aberta para impressão / salvar em PDF!', { icon: '🖨️' })
-        return
-      }
-
-      // Se retornou JSON de erro disfarçado
-      if (contentType.includes('application/json')) {
-        const text = await res.data.text()
-        const errJson = JSON.parse(text)
-        throw new Error(errJson.message || 'Erro ao gerar PDF')
-      }
-
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-      const link = document.createElement('a')
-      link.href = url
-      const safeName = nomeGrupo.replace(/[^a-zA-Z0-9_-]/g, '_')
-      link.setAttribute('download', `ordem_producao_${safeName}.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-      toast.success('Download do PDF concluído!')
+      // 2. Gera e baixa o arquivo PDF diretamente no navegador (salva nos Downloads do computador)
+      gerarEBaixarPdfOrdem(dados, nomeGrupo)
+      toast.success('Download do PDF concluído!', { id: toastId })
     } catch (err: unknown) {
-      console.warn('Fallback para ordem de impressão:', err)
-      // Abre a ordem diretamente no navegador formatada para imprimir / salvar em PDF
+      console.warn('Erro ao gerar PDF localmente, tentando fallback:', err)
+      toast.dismiss(toastId)
+      // Se falhar, abre a versão HTML pronta para imprimir / Salvar em PDF
       const printUrl = grupoService.urlImprimirOrdem(grupoId)
       window.open(printUrl, '_blank')
-      toast('Abrindo ordem para imprimir / salvar em PDF...', { icon: '🖨️' })
+      toast('Abrindo ordem para impressão / salvar em PDF...', { icon: '🖨️' })
     }
   },
 

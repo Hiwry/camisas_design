@@ -154,6 +154,9 @@ export interface TotaisProducaoResponse {
   grupo: {
     id: number
     nome: string
+    cliente_nome?: string
+    cliente_whatsapp?: string
+    confeccao_nome?: string
     status: string
     prazo_limite: string
     total_esperado: number
