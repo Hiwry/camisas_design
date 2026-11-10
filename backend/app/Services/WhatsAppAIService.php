@@ -23,27 +23,34 @@ class WhatsAppAIService
      */
     private array $intencoes = [
         'novo_pedido' => [
+            '^\s*1\s*$', '^\s*1️⃣\s*$',
+            '^\s*pedido\s*$', '^\s*pedidos\s*$', '^\s*novo\s*$',
             'novo pedido', 'fazer pedido', 'fazer um pedido', 'quero fazer um pedido',
             'criar pedido', 'encomendar', 'nova arte', 'quero uma arte', 'fazer fardamento',
             'solicitar arte', 'solicitar pedido', 'fazer camisa', 'encomenda',
+            'realizar pedido', 'realizar um pedido', 'fazer arte', 'pedir arte',
         ],
         'meus_pedidos' => [
+            '^\s*2\s*$', '^\s*2️⃣\s*$',
             'meus pedidos', 'meu pedido', 'como est[aá] meu pedido', 'onde est[aá] meu pedido',
             'status do meu pedido', 'acompanhar pedido', 'rastrear', 'rastreio',
-            'ver meus pedidos', 'lista dos meus pedidos',
+            'ver meus pedidos', 'lista dos meus pedidos', 'consultar',
         ],
         'resumo_geral' => [
+            '^\s*2\s*$', '^\s*2️⃣\s*$',
             'resumo', 'relat[oó]rio', 'todos os pedidos',
             'como est[aã]o os pedidos', 'vis[aã]o geral', 'overview',
             'me manda os pedidos', 'quero ver os pedidos', 'lista de pedidos',
             'quantos pedidos',
         ],
         'pedidos_atrasados' => [
+            '^\s*3\s*$', '^\s*3️⃣\s*$',
             'atrasad[oa]s?', 'atraso', 'vencid[oa]s?', 'atras[oó]',
             'pendentes? atrasad', 'fora do prazo', 'prazo vencid',
             'o que est[aá] atrasado', 'tem algo atrasado', 'algum atraso',
         ],
         'prazos_entrega' => [
+            '^\s*4\s*$', '^\s*4️⃣\s*$',
             'entrega', 'prazos?', 'datas? de entrega', 'quando entrega',
             'pr[oó]ximas? entregas?', 'calendário', 'agenda',
             'quando vence', 'vencimento', 'deadline',
@@ -54,6 +61,7 @@ class WhatsAppAIService
             'pedido\s+n[uú]mero\s*(\d+)',
         ],
         'dashboard' => [
+            '^\s*5\s*$', '^\s*5️⃣\s*$',
             'dashboard', 'estat[ií]sticas?', 'n[uú]meros', 'indicadores',
             'kpi', 'painel', 'status geral',
         ],
@@ -62,8 +70,10 @@ class WhatsAppAIService
             'aprovados?', 'finalizados?', 'cancelados?',
         ],
         'ajuda' => [
+            '^\s*menu\s*$', '^\s*ajuda\s*$', '^\s*oi\s*$', '^\s*ol[aá]\s*$', '^\s*ola\s*$',
+            '^\s*bom\s+dia\s*$', '^\s*boa\s+tarde\s*$', '^\s*boa\s+noite\s*$',
             'ajuda', 'help', 'comandos', 'o que voc[eê] faz',
-            'menu', 'op[cç][oõ]es', 'como funciona',
+            'menu', 'op[cç][oõ]es', 'como funciona', 'in[ií]cio', 'come[cç]ar',
         ],
     ];
 
@@ -431,8 +441,8 @@ class WhatsAppAIService
                 $resposta = "👋 *Olá! Bem-vindo à Camiseta Design!* 🎨👕\n"
                     . "━━━━━━━━━━━━━━━━━━━━━\n"
                     . "Somos especialistas em criação e vetorização de artes para fardamentos esportivos, camisetas escolares, eventos e uniformes.\n\n"
-                    . "Vou te atender agora para registrar seu pedido de arte ou fardamento!\n\n"
-                    . "Para começarmos o seu atendimento, *qual é o seu nome?*\n\n"
+                    . "✨ *Você pode realizar o seu pedido de arte diretamente aqui pelo WhatsApp!*\n\n"
+                    . "Para começarmos o seu atendimento e registrar seu pedido, *qual é o seu nome?*\n\n"
                     . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
 
                 $this->wa->enviarTexto($numero, $resposta);
@@ -441,8 +451,13 @@ class WhatsAppAIService
 
             // INTENÇÃO: Criar Novo Pedido via Chatbot (Clientes cadastrados, Confecções ou Admin)
             if ($intencao === 'novo_pedido') {
-                $nomeCliente = $remetente['nome'] ?? null;
-                $etapaInicial = !empty($nomeCliente) ? 'titulo' : 'nome';
+                if ($remetente['tipo'] === 'admin') {
+                    $nomeCliente = null;
+                    $etapaInicial = 'nome';
+                } else {
+                    $nomeCliente = $remetente['nome'] ?? null;
+                    $etapaInicial = !empty($nomeCliente) ? 'titulo' : 'nome';
+                }
 
                 Cache::put($stateKey, [
                     'etapa'        => $etapaInicial,
@@ -457,9 +472,13 @@ class WhatsAppAIService
                         . "_(Ex: Camiseta Terceirão 2026, Fardamento Futebol Real Madrid, Polo Corporativa Azul)_\n\n"
                         . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
                 } else {
-                    $resposta = "🎨 *Vamos iniciar seu novo pedido de arte!* 👕\n"
+                    $promptNome = $remetente['tipo'] === 'admin'
+                        ? "Para começarmos o registro do pedido, *qual é o nome do cliente ou da confecção?*"
+                        : "Para começarmos o seu pedido, *qual é o seu nome?*";
+
+                    $resposta = "🎨 *Vamos iniciar seu novo pedido de arte pelo WhatsApp!* 👕\n"
                         . "━━━━━━━━━━━━━━━━━━━━━\n\n"
-                        . "Para começarmos, *qual é o seu nome?*\n\n"
+                        . "{$promptNome}\n\n"
                         . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
                 }
 
@@ -513,8 +532,12 @@ class WhatsAppAIService
 
             // 3. CLIENTE: ACESSO EXCLUSIVO AOS PEDIDOS VINCULADOS AO SEU PRÓPRIO NÚMERO
             if ($remetente['tipo'] === 'cliente') {
-                $statusFiltro = $classificacao['status'] ?? null;
-                $resposta = $this->relatorioPedidosCliente($numero, $intencao, $statusFiltro);
+                if ($intencao === 'ajuda') {
+                    $resposta = $this->mensagemAjudaCliente($remetente['nome'] ?? 'Cliente', $numero);
+                } else {
+                    $statusFiltro = $classificacao['status'] ?? null;
+                    $resposta = $this->relatorioPedidosCliente($numero, $intencao, $statusFiltro);
+                }
                 $this->wa->enviarTexto($numero, $resposta);
                 return;
             }
@@ -1006,20 +1029,21 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
 
     private function mensagemAjuda(): string
     {
-        return "🤖 *Assistente Camiseta Design*\n"
-            . "━━━━━━━━━━━━━━━━━━━━━\n\n"
-            . "Comandos disponíveis:\n\n"
-            . "📋 *\"resumo\"* — Ver todos os pedidos ativos\n"
-            . "🚨 *\"atrasados\"* — Pedidos em atraso\n"
-            . "📅 *\"prazos\"* ou *\"entregas\"* — Datas de entrega\n"
-            . "🔍 *\"pedido 42\"* — Detalhes do pedido #42\n"
-            . "📊 *\"dashboard\"* — Estatísticas gerais\n"
-            . "📌 *\"em produção\"* — Pedidos por status\n\n"
-            . "💡 _Você também pode perguntar em linguagem natural!_\n"
-            . "Exemplos:\n"
+        return "👋 *Olá! Bem-vindo ao Assistente Camiseta Design* 🎨👕\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n"
+            . "Aqui você pode gerenciar a produção ou *realizar novos pedidos de arte diretamente pelo WhatsApp!*\n\n"
+            . "📌 *O que você deseja fazer?*\n\n"
+            . "1️⃣ *\"novo pedido\"* — Registrar um novo pedido de arte/fardamento agora\n"
+            . "2️⃣ *\"resumo\"* — Ver todos os pedidos ativos\n"
+            . "3️⃣ *\"atrasados\"* — Pedidos em atraso ou urgentes\n"
+            . "4️⃣ *\"prazos\"* — Consultar próximas datas de entrega\n"
+            . "5️⃣ *\"dashboard\"* — Estatísticas e status da produção\n\n"
+            . "🔍 *\"pedido 42\"* — Detalhes de um pedido específico\n"
+            . "📌 *\"em produção\"* — Filtrar pedidos por status\n\n"
+            . "💡 _Você pode responder digitando o número (ex: *1* ou *2*) ou perguntar naturalmente:_\n"
+            . "  • _\"novo pedido\"_\n"
             . "  • _\"O que está atrasado?\"_\n"
-            . "  • _\"Quando entrega o pedido 15?\"_\n"
-            . "  • _\"Quantos pedidos temos?\"_";
+            . "  • _\"Quando entrega o pedido 15?\"_";
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1446,17 +1470,32 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
      */
     public function mensagemAjudaConfeccao(Confeccao $confeccao, string $numero): string
     {
-        return "🤖 *Olá, {$confeccao->nome}!* 👋\n"
+        return "👋 *Olá, {$confeccao->nome}!* 🎨👕\n"
             . "Sou o assistente virtual da *Camiseta Design*.\n"
-            . "━━━━━━━━━━━━━━━━━━━━━\n\n"
-            . "Como posso ajudar você hoje?\n\n"
-            . "📦 *\"Meus Pedidos\"* — Ver a lista e status dos seus pedidos\n"
-            . "🎨 *\"Novo Pedido\"* — Encomendar uma nova arte ou fardamento\n"
-            . "🔍 *\"Pedido #12\"* — Ver detalhes de um pedido específico\n"
-            . "🌐 *\"Rastreio\"* — Link do portal de acompanhamento\n\n"
-            . "💡 Você também pode perguntar naturalmente, ex:\n"
-            . "• _\"Como tá o fardamento do Real?\"_\n"
-            . "• _\"Tem alguma arte aguardando aprovação?\"_";
+            . "━━━━━━━━━━━━━━━━━━━━━\n"
+            . "Aqui você pode acompanhar suas artes ou *realizar novos pedidos diretamente pelo WhatsApp!*\n\n"
+            . "📌 *Como posso ajudar você hoje?*\n\n"
+            . "1️⃣ *\"Novo Pedido\"* — Encomendar uma nova arte ou fardamento agora\n"
+            . "2️⃣ *\"Meus Pedidos\"* — Ver status e andamento das suas artes\n"
+            . "3️⃣ *\"Prazos\"* — Previsão de entrega dos seus pedidos\n"
+            . "4️⃣ *\"Rastreio\"* — Link do portal de acompanhamento\n\n"
+            . "🔍 *\"Pedido #12\"* — Detalhes de um pedido específico\n\n"
+            . "💡 _Responda com o número (ex: *1*) ou escreva o que você precisa!_";
+    }
+
+    /**
+     * Menu de ajuda para Clientes cadastrados
+     */
+    public function mensagemAjudaCliente(string $nome, string $numero): string
+    {
+        return "👋 *Olá, {$nome}! Bem-vindo à Camiseta Design!* 🎨👕\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n"
+            . "Aqui você pode acompanhar suas artes ou *realizar novos pedidos diretamente pelo WhatsApp!*\n\n"
+            . "📌 *Como posso ajudar você hoje?*\n\n"
+            . "1️⃣ *\"Novo Pedido\"* — Encomendar uma nova arte ou fardamento agora\n"
+            . "2️⃣ *\"Meus Pedidos\"* — Acompanhar status dos seus pedidos\n"
+            . "3️⃣ *\"Rastreio\"* — Ver detalhes e link de aprovação no portal\n\n"
+            . "💡 _Digite o número da opção (ex: *1*) ou envie uma mensagem!_";
     }
 
     /**
@@ -1466,13 +1505,14 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
     {
         return "👋 *Olá! Bem-vindo à Camiseta Design!* 🎨👕\n"
             . "━━━━━━━━━━━━━━━━━━━━━\n"
-            . "Somos especialistas em criação e vetorização de artes para fardamentos esportivos, camisetas escolares e moda.\n\n"
-            . "Como posso te ajudar hoje?\n\n"
-            . "🎨 *\"Novo Pedido\"* — Encomendar arte ou fardamento\n"
-            . "🔍 *\"Rastrear\"* — Consultar o andamento de um pedido\n"
+            . "Somos especialistas em criação e vetorização de artes para fardamentos esportivos, camisetas escolares e eventos.\n\n"
+            . "✨ *Você pode realizar o seu pedido de arte diretamente aqui pelo WhatsApp!*\n\n"
+            . "📌 *Como posso te ajudar hoje?*\n\n"
+            . "1️⃣ *\"Novo Pedido\"* — Encomendar arte ou fardamento agora\n"
+            . "2️⃣ *\"Rastrear\"* — Consultar o andamento de um pedido\n"
             . "🌐 *Nosso Site:* https://camisetadesign.com.br\n"
             . "🖼️ *Portfólio:* https://camisetadesign.com.br/portfolio\n\n"
-            . "Se preferir, deixe sua mensagem que um designer falará com você em breve!";
+            . "💡 _Digite *1* para iniciar seu pedido ou envie uma mensagem!_";
     }
 
     /**
