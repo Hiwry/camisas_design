@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PortfolioItem;
+use App\Models\PortfolioCategoria;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PortfolioController extends Controller
 {
@@ -277,5 +279,161 @@ class PortfolioController extends Controller
     {
         $portfolio->delete();
         return response()->json(['message' => 'Trabalho removido com sucesso.']);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // GESTÃO DE CATEGORIAS E SERVIÇOS DO PORTFÓLIO
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Listar categorias e serviços (Público / Admin)
+     */
+    public function listarCategorias(Request $request)
+    {
+        $user = auth('sanctum')->user();
+        $isAdm = $user && $user->role === 'admin';
+
+        $query = PortfolioCategoria::query()->orderBy('ordem', 'asc')->orderBy('id', 'asc');
+        if (!$isAdm && !$request->boolean('todas')) {
+            $query->where('ativo', true);
+        }
+
+        $todas = $query->get();
+
+        // Contagens por slug em portfolio_itens
+        $contagensCategorias = PortfolioItem::select('categoria')
+            ->selectRaw('count(*) as count')
+            ->groupBy('categoria')
+            ->pluck('count', 'categoria');
+
+        $contagensServicos = PortfolioItem::select('servico')
+            ->selectRaw('count(*) as count')
+            ->groupBy('servico')
+            ->pluck('count', 'servico');
+
+        $categorias = $todas->where('tipo', 'segmento')->values()->map(function ($cat) use ($contagensCategorias) {
+            $cat->total_itens = $contagensCategorias[$cat->slug] ?? 0;
+            return $cat;
+        });
+
+        $servicos = $todas->where('tipo', 'servico')->values()->map(function ($srv) use ($contagensServicos) {
+            $srv->total_itens = $contagensServicos[$srv->slug] ?? 0;
+            return $srv;
+        });
+
+        return response()->json([
+            'categorias' => $categorias,
+            'servicos'   => $servicos,
+            'todas'      => $todas,
+        ]);
+    }
+
+    /**
+     * Criar categoria ou serviço (somente Admin)
+     */
+    public function storeCategoria(Request $request)
+    {
+        $request->validate([
+            'nome'  => 'required|string|max:100',
+            'slug'  => 'nullable|string|max:100',
+            'tipo'  => 'required|in:segmento,servico',
+            'ordem' => 'nullable|integer',
+            'ativo' => 'nullable|boolean',
+        ]);
+
+        $slug = !empty($request->slug)
+            ? Str::slug($request->slug)
+            : Str::slug($request->nome);
+
+        // Se o slug já existir, adiciona sufixo numérico
+        $originalSlug = $slug;
+        $counter = 1;
+        while (PortfolioCategoria::where('slug', $slug)->exists()) {
+            $slug = "{$originalSlug}-{$counter}";
+            $counter++;
+        }
+
+        $maxOrdem = PortfolioCategoria::where('tipo', $request->tipo)->max('ordem') ?? 0;
+
+        $categoria = PortfolioCategoria::create([
+            'nome'  => trim($request->nome),
+            'slug'  => $slug,
+            'tipo'  => $request->tipo,
+            'ordem' => $request->has('ordem') ? (int) $request->ordem : $maxOrdem + 1,
+            'ativo' => $request->has('ativo') ? $request->boolean('ativo') : true,
+        ]);
+
+        return response()->json($categoria, 201);
+    }
+
+    /**
+     * Atualizar categoria ou serviço (somente Admin)
+     */
+    public function updateCategoria(Request $request, PortfolioCategoria $categoria)
+    {
+        $request->validate([
+            'nome'  => 'sometimes|required|string|max:100',
+            'slug'  => 'nullable|string|max:100',
+            'tipo'  => 'nullable|in:segmento,servico',
+            'ordem' => 'nullable|integer',
+            'ativo' => 'nullable|boolean',
+        ]);
+
+        $dados = [];
+        if ($request->has('nome')) {
+            $dados['nome'] = trim($request->nome);
+        }
+
+        if ($request->filled('slug')) {
+            $slug = Str::slug($request->slug);
+            // Verifica se o slug pertence a outro
+            if ($slug !== $categoria->slug && PortfolioCategoria::where('slug', $slug)->where('id', '!=', $categoria->id)->exists()) {
+                return response()->json(['message' => 'Este identificador (slug) já está em uso.'], 422);
+            }
+            $dados['slug'] = $slug;
+        }
+
+        if ($request->has('tipo')) {
+            $dados['tipo'] = $request->tipo;
+        }
+
+        if ($request->has('ordem')) {
+            $dados['ordem'] = (int) $request->ordem;
+        }
+
+        if ($request->has('ativo')) {
+            $dados['ativo'] = $request->boolean('ativo');
+        }
+
+        // Se o slug foi alterado, atualiza também os itens que usavam o slug antigo
+        $slugAntigo = $categoria->slug;
+        $categoria->update($dados);
+
+        if (!empty($dados['slug']) && $dados['slug'] !== $slugAntigo) {
+            $campo = $categoria->tipo === 'segmento' ? 'categoria' : 'servico';
+            PortfolioItem::where($campo, $slugAntigo)->update([$campo => $dados['slug']]);
+        }
+
+        return response()->json($categoria);
+    }
+
+    /**
+     * Excluir categoria ou serviço (somente Admin)
+     */
+    public function destroyCategoria(PortfolioCategoria $categoria)
+    {
+        $campo = $categoria->tipo === 'segmento' ? 'categoria' : 'servico';
+        $totalVinculados = PortfolioItem::where($campo, $categoria->slug)->count();
+
+        // Se houver trabalhos vinculados, podemos reatribuir ou avisar
+        if ($totalVinculados > 0 && !request()->boolean('forcar')) {
+            return response()->json([
+                'message' => "Esta categoria possui {$totalVinculados} trabalho(s) vinculado(s). Confirme para desvincular ou excluir.",
+                'total_vinculados' => $totalVinculados,
+            ], 409);
+        }
+
+        $categoria->delete();
+        return response()->json(['message' => 'Categoria removida com sucesso.']);
     }
 }

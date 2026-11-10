@@ -111,31 +111,44 @@ class WhatsAppController extends Controller
     {
         // Validação da chave da Evolution API para impedir requisições forjadas
         $expectedKey = config('services.evolution.key');
-        if (!empty($expectedKey)) {
-            $providedKey = $request->header('apikey')
-                ?? $request->header('x-api-key')
-                ?? $request->bearerToken()
-                ?? $request->query('apikey');
+        $expectedInstance = config('services.evolution.instance', 'camiseta-design');
+        $ip = $request->ip();
+        $isLocal = in_array($ip, ['127.0.0.1', '::1', 'localhost']);
 
-            if ($providedKey !== $expectedKey) {
+        $providedKey = $request->header('apikey')
+            ?? $request->header('x-api-key')
+            ?? $request->bearerToken()
+            ?? $request->query('apikey')
+            ?? $request->input('apikey')
+            ?? $request->input('data.apikey');
+
+        $payload = $request->all();
+        $payloadInstance = $payload['instance'] ?? $payload['data']['instance'] ?? null;
+
+        // Valida se houver chave configurada e não for chamada local com instância correta
+        if (!empty($expectedKey) && !$isLocal) {
+            $instanciaConfere = !empty($payloadInstance) && $payloadInstance === $expectedInstance;
+            $chaveConfere = !empty($providedKey) && $providedKey === $expectedKey;
+
+            if (!$chaveConfere && !$instanciaConfere) {
                 Log::warning('WhatsApp Webhook: tentativa não autorizada com chave inválida ou ausente.', [
-                    'ip' => $request->ip(),
+                    'ip' => $ip,
+                    'provided_key' => $providedKey ? 'fornecida_mas_diferente' : 'ausente',
                 ]);
                 return response()->json(['status' => 'unauthorized', 'message' => 'Chave de webhook inválida.'], 401);
             }
         }
 
-        $payload = $request->all();
-
         Log::debug('WhatsApp webhook recebido', [
             'event' => $payload['event'] ?? 'unknown',
             'keys'  => array_keys($payload),
+            'ip'    => $ip,
         ]);
 
         // Só processa eventos de mensagem
-        $evento = $payload['event'] ?? '';
-        if (!in_array($evento, ['messages.upsert', 'MESSAGES_UPSERT', ''])) {
-            return response()->json(['status' => 'ignored', 'reason' => 'event_type']);
+        $evento = strtolower($payload['event'] ?? '');
+        if (!in_array($evento, ['messages.upsert', 'messages_upsert', ''])) {
+            return response()->json(['status' => 'ignored', 'reason' => 'event_type', 'event' => $evento]);
         }
 
         // Extrai dados da mensagem — formato pode variar entre versões da Evolution API
@@ -161,26 +174,55 @@ class WhatsAppController extends Controller
                 $dados['key']['remoteJid'] ?? null,
             ];
             foreach ($candidatos as $cand) {
-                if ($cand && !str_contains($cand, '@lid')) {
+                if ($cand && !str_contains($cand, '@lid') && !str_contains($cand, '@g.us')) {
                     $numero = $cand;
                     break;
                 }
             }
-            if (!$numero && isset($dados['key']['remoteJid'])) {
+            if (!$numero && isset($dados['key']['remoteJid']) && !str_contains($dados['key']['remoteJid'], '@g.us')) {
                 $numero = $dados['key']['remoteJid'];
             }
             $fromMe = $dados['key']['fromMe'] ?? false;
         }
 
+        // Ignora grupos do WhatsApp (@g.us)
+        $remoteJid = $dados['key']['remoteJid'] ?? '';
+        if (str_contains($remoteJid, '@g.us') || (is_string($numero) && str_contains($numero, '@g.us'))) {
+            return response()->json(['status' => 'ignored', 'reason' => 'group_message']);
+        }
+
         if (isset($dados['message'])) {
-            $mensagem = $dados['message']['conversation'] 
-                ?? $dados['message']['extendedTextMessage']['text'] 
-                ?? $dados['message']['imageMessage']['caption'] 
-                ?? $dados['message']['videoMessage']['caption'] 
+            $msgObj = $dados['message'];
+
+            // Desencapsula mensagens efêmeras/temporárias
+            if (isset($msgObj['ephemeralMessage']['message'])) {
+                $msgObj = $msgObj['ephemeralMessage']['message'];
+            }
+            if (isset($msgObj['viewOnceMessage']['message'])) {
+                $msgObj = $msgObj['viewOnceMessage']['message'];
+            }
+            if (isset($msgObj['viewOnceMessageV2']['message'])) {
+                $msgObj = $msgObj['viewOnceMessageV2']['message'];
+            }
+
+            $mensagem = $msgObj['conversation'] 
+                ?? $msgObj['extendedTextMessage']['text'] 
+                ?? $msgObj['imageMessage']['caption'] 
+                ?? $msgObj['videoMessage']['caption'] 
+                ?? $msgObj['buttonsResponseMessage']['selectedDisplayText']
+                ?? $msgObj['buttonsResponseMessage']['selectedButtonId']
+                ?? $msgObj['templateButtonReplyMessage']['selectedId']
+                ?? $msgObj['listResponseMessage']['title']
+                ?? $msgObj['listResponseMessage']['singleSelectReply']['selectedRowId']
                 ?? null;
         }
 
-        // Se não encontrou mensagem de texto, ignora (pode ser imagem, áudio etc.)
+        // Fallback para mensagens diretas da Evolution
+        if (!$mensagem) {
+            $mensagem = $dados['text'] ?? $dados['content'] ?? $dados['body'] ?? null;
+        }
+
+        // Se não encontrou mensagem de texto, ignora (pode ser áudio sem transcrição etc.)
         if (!$mensagem || !$numero) {
             return response()->json(['status' => 'ignored', 'reason' => 'no_text_message']);
         }

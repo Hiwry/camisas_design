@@ -399,20 +399,69 @@ class WhatsAppAIService
 
             $intencao = $classificacao['intencao'] ?? 'ajuda';
 
-            // INTENÇÃO: Criar Novo Pedido via Chatbot
-            if ($intencao === 'novo_pedido') {
+            // CASO ESPECIAL: NÚMERO SEM CADASTRO (LEAD / NOVO VISITANTE)
+            // Conforme solicitado: atender normalmente para criar pedido
+            if ($remetente['tipo'] === 'lead') {
+                // Se perguntou explicitamente por consulta/rastreio de pedidos anteriores
+                if (in_array($intencao, ['meus_pedidos', 'pedidos_atrasados', 'prazos_entrega', 'resumo_geral', 'pedidos_por_status'])) {
+                    Cache::put($stateKey, [
+                        'etapa'        => 'nome',
+                        'confeccao_id' => null,
+                        'nome_cliente' => null,
+                    ], now()->addMinutes(30));
+
+                    $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número de WhatsApp ainda.\n\n"
+                        . "Mas podemos iniciar o seu pedido de arte ou fardamento agora mesmo! 😊\n\n"
+                        . "Para começarmos o seu atendimento, *qual é o seu nome?*\n\n"
+                        . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+
+                    $this->wa->enviarTexto($numero, $resposta);
+                    return;
+                }
+
+                // Para qualquer outra mensagem (saudações, dúvidas, novo pedido, orçamentos):
+                // Atende normalmente e já inicia o fluxo guiado para criar o pedido
                 Cache::put($stateKey, [
-                    'etapa'        => 'titulo',
-                    'confeccao_id' => $remetente['confeccao']?->id ?? null,
-                    'nome_cliente' => $remetente['nome'] ?? null,
+                    'etapa'        => 'nome',
+                    'confeccao_id' => null,
+                    'nome_cliente' => null,
+                    'primeira_msg' => $mensagem,
                 ], now()->addMinutes(30));
 
-                $saudacao = !empty($remetente['nome']) ? "Olá, *{$remetente['nome']}*! " : "Olá! ";
-                $resposta = "🎨 *{$saudacao}Vamos iniciar seu novo pedido de arte!* 👕\n"
-                    . "━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    . "Por favor, informe o *título ou descrição da peça*:\n"
-                    . "_(Ex: Camiseta Terceirão 2026, Fardamento Futebol Real Madrid, Polo Corporativa Azul)_\n\n"
+                $resposta = "👋 *Olá! Bem-vindo à Camiseta Design!* 🎨👕\n"
+                    . "━━━━━━━━━━━━━━━━━━━━━\n"
+                    . "Somos especialistas em criação e vetorização de artes para fardamentos esportivos, camisetas escolares, eventos e uniformes.\n\n"
+                    . "Vou te atender agora para registrar seu pedido de arte ou fardamento!\n\n"
+                    . "Para começarmos o seu atendimento, *qual é o seu nome?*\n\n"
                     . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+
+                $this->wa->enviarTexto($numero, $resposta);
+                return;
+            }
+
+            // INTENÇÃO: Criar Novo Pedido via Chatbot (Clientes cadastrados, Confecções ou Admin)
+            if ($intencao === 'novo_pedido') {
+                $nomeCliente = $remetente['nome'] ?? null;
+                $etapaInicial = !empty($nomeCliente) ? 'titulo' : 'nome';
+
+                Cache::put($stateKey, [
+                    'etapa'        => $etapaInicial,
+                    'confeccao_id' => $remetente['confeccao']?->id ?? null,
+                    'nome_cliente' => $nomeCliente,
+                ], now()->addMinutes(30));
+
+                if (!empty($nomeCliente)) {
+                    $resposta = "🎨 *Olá, {$nomeCliente}! Vamos iniciar seu novo pedido de arte!* 👕\n"
+                        . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        . "Por favor, informe o *título ou descrição da peça*:\n"
+                        . "_(Ex: Camiseta Terceirão 2026, Fardamento Futebol Real Madrid, Polo Corporativa Azul)_\n\n"
+                        . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+                } else {
+                    $resposta = "🎨 *Vamos iniciar seu novo pedido de arte!* 👕\n"
+                        . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        . "Para começarmos, *qual é o seu nome?*\n\n"
+                        . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+                }
 
                 $this->wa->enviarTexto($numero, $resposta);
                 return;
@@ -470,16 +519,7 @@ class WhatsAppAIService
                 return;
             }
 
-            // 4. VISITANTE / NOVO LEAD (sem pedidos cadastrados): NENHUM ACESSO A PEDIDOS
-            if (in_array($intencao, ['meus_pedidos', 'resumo_geral', 'pedidos_atrasados', 'prazos_entrega', 'pedidos_por_status'])) {
-                $resposta = "🔍 *Consultar Pedidos*\n\nNão encontramos pedidos vinculados a este número de WhatsApp.\n\n"
-                    . "• Para iniciar um novo pedido de fardamento ou arte, digite *Novo Pedido*.\n"
-                    . "• Se o seu pedido foi cadastrado com outro telefone, informe ao nosso atendimento para atualizarmos seu cadastro.\n"
-                    . "• Portal de rastreio online: https://camisetadesign.com.br/rastreio?tel={$numero}";
-                $this->wa->enviarTexto($numero, $resposta);
-                return;
-            }
-
+            // Fallback de segurança para mensagens não mapeadas
             $resposta = $this->mensagemAjudaVisitante();
             $this->wa->enviarTexto($numero, $resposta);
 
@@ -1042,20 +1082,44 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
     private function processarEtapaPedido(string $numero, string $mensagem, array $estado, array $remetente): string
     {
         $stateKey = 'wa_fluxo_pedido_' . $numero;
-        $etapa = $estado['etapa'] ?? 'titulo';
+        $etapa = $estado['etapa'] ?? 'nome';
+
+        // ETAPA 0: Coleta o Nome do Cliente (essencial para números sem cadastro)
+        if ($etapa === 'nome') {
+            $nomeLimpo = $this->limparNomeUsuario($mensagem);
+
+            if (mb_strlen($nomeLimpo) < 2) {
+                return "👋 Por favor, informe seu nome ou como prefere ser chamado para identificarmos seu pedido:\n\n_(Ex: Carlos Silva)_";
+            }
+
+            $estado['nome_cliente'] = $nomeLimpo;
+            $estado['etapa'] = 'titulo';
+            Cache::put($stateKey, $estado, now()->addMinutes(30));
+
+            return "Prazer em te conhecer, *{$nomeLimpo}*! 😊\n\n"
+                . "Agora me conta: *qual é o modelo, peça ou título do seu pedido?*\n"
+                . "_(Ex: Camiseta Terceirão 2026, Fardamento de Futebol, Camisa Polo Corporativa, Regata de Basquete)_\n\n"
+                . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
+        }
 
         // ETAPA 1: Coleta o Título da Peça
         if ($etapa === 'titulo') {
-            $estado['titulo'] = $mensagem;
+            $titulo = trim($mensagem);
+            if (mb_strlen($titulo) < 2) {
+                return "👕 Por favor, informe uma descrição ou título para sua peça (Ex: Camiseta Terceirão, Fardamento Futebol):";
+            }
+
+            $estado['titulo'] = $titulo;
             $estado['etapa'] = 'tipo_impressao';
             Cache::put($stateKey, $estado, now()->addMinutes(30));
 
             return "👕 *Tipo de Estampa / Produção:*\n\n"
                 . "Qual o processo deste pedido?\n\n"
-                . "*1* — Sublimação Total (Fardamento Esportivo / Terceirão)\n"
+                . "*1* — Sublimação Total (Fardamento Esportivo / Terceirão / Atléticas)\n"
                 . "*2* — Bordado (Polos / Jalecos / Bonés)\n"
-                . "*3* — Serigrafia / Silk (Algodão / Moda)\n\n"
-                . "_Responda apenas com *1*, *2* ou *3*._";
+                . "*3* — Serigrafia / Silk (Camisetas Algodão / Moda / Eventos)\n\n"
+                . "_Responda apenas com *1*, *2* ou *3*._\n\n"
+                . "_(Para cancelar a qualquer momento, digite *cancelar*)_";
         }
 
         // ETAPA 2: Coleta o Tipo de Impressão
@@ -1087,8 +1151,8 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             };
 
             return "📝 *Detalhes e Observações ({$tipoNome})*\n\n"
-                . "Descreva cores predominantes, mascote, referências, posições ou quantidade de peças.\n\n"
-                . "_(Se não tiver observações agora, digite *nenhuma*)_";
+                . "Descreva as cores desejadas, quantidade estimada de peças, referências ou elementos da estampa (escudo, patrocinadores, números):\n\n"
+                . "_(Se preferir explicar depois ou enviar fotos em seguida, basta digitar *nenhuma*)_";
         }
 
         // ETAPA 3: Coleta Observações e Cria o Pedido no Banco
@@ -1124,6 +1188,8 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             $slaHoras = Confeccao::PLANOS[$confeccao->plano]['sla_horas'] ?? 48;
             $prazoCalculado = now()->addHours($slaHoras);
 
+            $nomeCliente = $estado['nome_cliente'] ?? $remetente['nome'] ?? 'Cliente WhatsApp';
+
             try {
                 $dadosPedido = [
                     'confeccao_id'   => $confeccao->id,
@@ -1141,7 +1207,6 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                     $dadosPedido['whatsapp_cliente'] = $numero;
                 }
 
-                $nomeCliente = $remetente['nome'] ?? 'Cliente WhatsApp';
                 if ($this->hasColumnSafe('pedidos', 'cliente_nome')) {
                     $dadosPedido['cliente_nome'] = $nomeCliente;
                 }
@@ -1179,14 +1244,15 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                     $admins = explode(',', $this->adminNumber);
                     $adminDestino = trim($admins[0]);
                     if (!empty($adminDestino) && $adminDestino !== '*') {
+                        $appUrl = rtrim(config('app.url'), '/');
                         $msgAdmin = "🚨 *Novo Pedido via WhatsApp Bot!*\n"
                             . "━━━━━━━━━━━━━━━━━━━━━\n"
                             . "• *Pedido:* #{$pedido->id} — {$pedido->titulo}\n"
-                            . "• *Cliente / Confecção:* " . ($remetente['nome'] ?? 'Cliente WhatsApp') . "\n"
-                            . "• *WhatsApp:* {$numero}\n"
+                            . "• *Cliente:* {$nomeCliente}\n"
+                            . "• *WhatsApp:* {$numero} (https://wa.me/{$numero})\n"
                             . "• *Processo:* {$tipoNome}\n"
                             . ($obs ? "• *Obs:* {$obs}\n" : "")
-                            . "\n👉 Acesse o painel: https://camisetadesign.com.br/pedidos/{$pedido->id}";
+                            . "\n👉 Painel: {$appUrl}/pedidos/{$pedido->id}";
                         $this->wa->enviarTexto($adminDestino, $msgAdmin);
                     }
                 } catch (\Throwable $te) {
@@ -1195,20 +1261,22 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             }
 
             $prazoTxt = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : null;
+            $urlRastreio = rtrim(config('app.url'), '/') . "/rastreio?tel={$numero}";
 
-            return "✅ *Pedido Criado com Sucesso!*\n"
+            return "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
                 . "━━━━━━━━━━━━━━━━━━━━━\n\n"
                 . "📋 *Resumo:*\n"
                 . "• *Pedido:* #{$pedido->id}\n"
-                . "• *Título:* {$pedido->titulo}\n"
+                . "• *Peça:* {$pedido->titulo}\n"
                 . "• *Processo:* {$tipoNome}\n"
-                . ($prazoTxt ? "• *Prazo Estimado:* {$prazoTxt}\n" : "")
-                . "• *Status:* 📝 Aguardando Briefing / Produção\n"
+                . ($prazoTxt ? "• *Previsão Inicial:* {$prazoTxt}\n" : "")
+                . "• *Status:* 📝 Aguardando Briefing / Criação\n"
                 . ($obs ? "• *Obs:* {$obs}\n" : "")
-                . "\n🎨 Nossa equipe já foi acionada para iniciar sua arte!\n\n"
-                . "Acompanhe seus pedidos em tempo real:\n"
-                . "👉 https://camisetadesign.com.br/rastreio?tel={$numero}\n\n"
-                . "_Se precisar de mais alguma informação, basta mandar uma mensagem!_";
+                . "\n🎨 Nossa equipe de designers já recebeu seus dados e vai iniciar sua arte!\n\n"
+                . "💡 *Dica:* Se você tiver fotos, logos ou referências de estampas, pode enviar aqui mesmo neste chat!\n\n"
+                . "🌐 Acompanhe seus pedidos em tempo real:\n"
+                . "👉 {$urlRastreio}\n\n"
+                . "_Muito obrigado pela preferência! Se precisar de algo, é só mandar mensagem._";
         }
 
         Cache::forget($stateKey);
@@ -1405,5 +1473,30 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             . "🌐 *Nosso Site:* https://camisetadesign.com.br\n"
             . "🖼️ *Portfólio:* https://camisetadesign.com.br/portfolio\n\n"
             . "Se preferir, deixe sua mensagem que um designer falará com você em breve!";
+    }
+
+    /**
+     * Limpa e padroniza o nome do usuário coletado no WhatsApp
+     */
+    public function limparNomeUsuario(string $texto): string
+    {
+        $nome = trim($texto);
+        $nome = rtrim($nome, '.!,;:?');
+
+        // Remove saudações e prefixos comuns em português
+        $padroes = [
+            '/^(?:ol[aá]|oi|oii|oiee|bom\s+dia|boa\s+tarde|boa\s+noite)[,!\s]+/iu',
+            '/^(?:meu\s+nome\s+[eé]|me\s+chamo|sou\s+(?:o|a)?|aqui\s+[eé]\s+(?:o|a)?|pode\s+me\s+chamar\s+de)\s+/iu',
+        ];
+        foreach ($padroes as $p) {
+            $nome = preg_replace($p, '', $nome);
+        }
+
+        $nome = trim($nome);
+        if (empty($nome) || mb_strlen($nome) > 60) {
+            $nome = mb_substr(trim($texto), 0, 60);
+        }
+
+        return mb_convert_case($nome, MB_CASE_TITLE, 'UTF-8');
     }
 }

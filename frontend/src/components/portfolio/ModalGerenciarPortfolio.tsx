@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PortfolioItem, portfolioService } from '@/services/api'
 import {
   X,
@@ -9,22 +10,11 @@ import {
   Save,
   Trash2,
   Plus,
+  FolderPlus,
+  Check,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
-
-const SEGMENTOS_DISPONIVEIS = [
-  { id: 'esportivos', label: 'Esportivos' },
-  { id: 'empresas', label: 'Empresas / Corporativo' },
-  { id: 'eventos', label: 'Eventos & Carnaval' },
-]
-
-export const SERVICOS_DISPONIVEIS = [
-  { id: 'sublimacao', label: 'Sublimação Total' },
-  { id: 'serigrafia', label: 'Serigrafia (Silk-Screen)' },
-  { id: 'bordado', label: 'Bordado' },
-  { id: 'logos', label: 'Logos & Mascotes' },
-]
 
 interface Props {
   itemParaEditar?: PortfolioItem | null
@@ -37,9 +27,29 @@ export default function ModalGerenciarPortfolio({
   onClose,
   onSuccess,
 }: Props) {
+  const qc = useQueryClient()
   const isEditing = Boolean(itemParaEditar)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [salvando, setSalvando] = useState(false)
+
+  // Consulta das Categorias cadastradas dinamicamente
+  const { data: categoriasData } = useQuery({
+    queryKey: ['portfolio-categorias'],
+    queryFn: () => portfolioService.listarCategorias(true),
+  })
+
+  const categorias = categoriasData?.categorias ?? [
+    { id: 1, nome: 'Esportivos', slug: 'esportivos', tipo: 'segmento' as const, ordem: 1, ativo: true },
+    { id: 2, nome: 'Empresas', slug: 'empresas', tipo: 'segmento' as const, ordem: 2, ativo: true },
+    { id: 3, nome: 'Eventos', slug: 'eventos', tipo: 'segmento' as const, ordem: 3, ativo: true },
+  ]
+
+  const servicos = categoriasData?.servicos ?? [
+    { id: 4, nome: 'Sublimação Total', slug: 'sublimacao', tipo: 'servico' as const, ordem: 1, ativo: true },
+    { id: 5, nome: 'Serigrafia (Silk)', slug: 'serigrafia', tipo: 'servico' as const, ordem: 2, ativo: true },
+    { id: 6, nome: 'Bordado', slug: 'bordado', tipo: 'servico' as const, ordem: 3, ativo: true },
+    { id: 7, nome: 'Logos & Mascotes', slug: 'logos', tipo: 'servico' as const, ordem: 4, ativo: true },
+  ]
 
   // Form State
   const [titulo, setTitulo] = useState(itemParaEditar?.titulo ?? '')
@@ -50,6 +60,11 @@ export default function ModalGerenciarPortfolio({
   const [imagemUrl, setImagemUrl] = useState(itemParaEditar?.imagem_principal ?? '')
   const [imagemArquivo, setImagemArquivo] = useState<File | null>(null)
   const [imagemPreview, setImagemPreview] = useState<string>(itemParaEditar?.imagem_principal ?? '')
+
+  // Mini criação rápida de categoria inline
+  const [criandoCatRapida, setCriandoCatRapida] = useState(false)
+  const [novaCatNome, setNovaCatNome] = useState('')
+  const [novaCatTipo, setNovaCatTipo] = useState<'segmento' | 'servico'>('segmento')
 
   const [cliente, setCliente] = useState(itemParaEditar?.cliente ?? '')
   const [ano, setAno] = useState(itemParaEditar?.ano ?? '2026')
@@ -64,6 +79,30 @@ export default function ModalGerenciarPortfolio({
   const [destaque, setDestaque] = useState(itemParaEditar?.destaque ?? false)
   const [ordem, setOrdem] = useState(itemParaEditar?.ordem ?? 0)
   const [ativo, setAtivo] = useState(itemParaEditar?.ativo ?? true)
+
+  const criarCatRapidaMutation = useMutation({
+    mutationFn: (dados: { nome: string; tipo: 'segmento' | 'servico' }) =>
+      portfolioService.adminCriarCategoria(dados),
+    onSuccess: (nova) => {
+      qc.invalidateQueries({ queryKey: ['portfolio-categorias'] })
+      qc.invalidateQueries({ queryKey: ['portfolio-itens'] })
+      if (nova.tipo === 'segmento') {
+        setCategoria(nova.slug)
+      } else {
+        setServico(nova.slug)
+      }
+      setNovaCatNome('')
+      setCriandoCatRapida(false)
+      toast.success(`Categoria "${nova.nome}" criada com sucesso!`)
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || 'Erro ao criar categoria.'),
+  })
+
+  function handleSalvarCatRapida() {
+    if (!novaCatNome.trim()) return
+    criarCatRapidaMutation.mutate({ nome: novaCatNome.trim(), tipo: novaCatTipo })
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -129,6 +168,10 @@ export default function ModalGerenciarPortfolio({
         toast.success('Novo trabalho publicado no catálogo!')
       }
 
+      qc.invalidateQueries({ queryKey: ['portfolio-itens'] })
+      qc.invalidateQueries({ queryKey: ['portfolio-itens-admin'] })
+      qc.invalidateQueries({ queryKey: ['portfolio-categorias'] })
+
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -157,10 +200,12 @@ export default function ModalGerenciarPortfolio({
           <div>
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#d4a020]" />
-              {isEditing ? 'Editar Trabalho do Portfólio' : 'Cadastrar Novo Trabalho no Portfólio'}
+              {isEditing ? `Editar Trabalho #${itemParaEditar?.id}` : 'Cadastrar Novo Trabalho no Portfólio'}
             </h2>
             <p className="text-[11px] sm:text-xs text-zinc-400">
-              Publique fotos de camisas prontas, mockups 3D e amostras para seus clientes verem.
+              {isEditing
+                ? 'Atualize fotos, títulos, textos e categorias deste trabalho individualmente.'
+                : 'Publique fotos de camisas prontas, mockups 3D e amostras para seus clientes verem.'}
             </p>
           </div>
           <button
@@ -171,6 +216,46 @@ export default function ModalGerenciarPortfolio({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Mini Criador Rápido de Categoria Inline */}
+        {criandoCatRapida && (
+          <div className="px-6 py-3 bg-zinc-900/90 border-b border-zinc-800 flex flex-col sm:flex-row items-center gap-2">
+            <input
+              type="text"
+              value={novaCatNome}
+              onChange={(e) => setNovaCatNome(e.target.value)}
+              placeholder="Nome da nova categoria..."
+              className="input text-xs py-1.5 flex-1 bg-[#181818]"
+              autoFocus
+            />
+            <select
+              value={novaCatTipo}
+              onChange={(e) => setNovaCatTipo(e.target.value as any)}
+              className="input text-xs py-1.5 bg-[#181818]"
+            >
+              <option value="segmento">Segmento (Ex: Escolar, Igreja)</option>
+              <option value="servico">Serviço/Técnica (Ex: DTF, Bordado)</option>
+            </select>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleSalvarCatRapida}
+                disabled={!novaCatNome.trim()}
+                className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Criar
+              </button>
+              <button
+                type="button"
+                onClick={() => setCriandoCatRapida(false)}
+                className="btn-secondary text-xs py-1.5 px-2.5"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Formulário com scroll */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
@@ -192,17 +277,30 @@ export default function ModalGerenciarPortfolio({
 
             {/* Segmento */}
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                Segmento *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-zinc-300">
+                  Segmento *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNovaCatTipo('segmento')
+                    setCriandoCatRapida(true)
+                  }}
+                  className="text-[11px] text-[#d4a020] hover:underline flex items-center gap-0.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  Nova
+                </button>
+              </div>
               <select
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
                 className="input w-full text-xs"
               >
-                {SEGMENTOS_DISPONIVEIS.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.label}
+                {categorias.map((cat) => (
+                  <option key={cat.id} value={cat.slug}>
+                    {cat.nome}
                   </option>
                 ))}
               </select>
@@ -210,17 +308,30 @@ export default function ModalGerenciarPortfolio({
 
             {/* Categoria do Serviço / Técnica */}
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                Categoria de Serviço *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-zinc-300">
+                  Serviço / Técnica *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNovaCatTipo('servico')
+                    setCriandoCatRapida(true)
+                  }}
+                  className="text-[11px] text-[#d4a020] hover:underline flex items-center gap-0.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  Novo
+                </button>
+              </div>
               <select
                 value={servico}
                 onChange={(e) => setServico(e.target.value)}
                 className="input w-full text-xs"
               >
-                {SERVICOS_DISPONIVEIS.map((srv) => (
-                  <option key={srv.id} value={srv.id}>
-                    {srv.label}
+                {servicos.map((srv) => (
+                  <option key={srv.id} value={srv.slug}>
+                    {srv.nome}
                   </option>
                 ))}
               </select>

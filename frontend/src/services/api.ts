@@ -271,6 +271,24 @@ export interface PortfolioResposta {
   }
 }
 
+export interface PortfolioCategoriaItem {
+  id: number
+  nome: string
+  slug: string
+  tipo: 'segmento' | 'servico'
+  ordem: number
+  ativo: boolean
+  total_itens?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PortfolioCategoriasResposta {
+  categorias: PortfolioCategoriaItem[]
+  servicos: PortfolioCategoriaItem[]
+  todas: PortfolioCategoriaItem[]
+}
+
 export const portfolioService = {
   listar: (params?: {
     categoria?: string
@@ -298,6 +316,28 @@ export const portfolioService = {
     api.patch(`/admin/portfolio/${id}/toggle-ativo`).then((r) => r.data),
   adminExcluir: (id: number) =>
     api.delete(`/admin/portfolio/${id}`).then((r) => r.data),
+
+  // Gestão de Categorias e Serviços
+  listarCategorias: (todas = false): Promise<PortfolioCategoriasResposta> =>
+    api.get('/portfolio-categorias', { params: { todas } }).then((r) => r.data),
+  adminCriarCategoria: (data: {
+    nome: string
+    slug?: string
+    tipo: 'segmento' | 'servico'
+    ordem?: number
+    ativo?: boolean
+  }): Promise<PortfolioCategoriaItem> =>
+    api.post('/admin/portfolio-categorias', data).then((r) => r.data),
+  adminAtualizarCategoria: (
+    id: number,
+    data: Partial<PortfolioCategoriaItem>
+  ): Promise<PortfolioCategoriaItem> =>
+    api.put(`/admin/portfolio-categorias/${id}`, data).then((r) => r.data),
+  adminExcluirCategoria: (
+    id: number,
+    forcar = false
+  ): Promise<{ message: string }> =>
+    api.delete(`/admin/portfolio-categorias/${id}`, { params: { forcar } }).then((r) => r.data),
 }
 
 

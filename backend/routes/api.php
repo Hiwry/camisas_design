@@ -46,6 +46,7 @@ Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
 
 // Portfólio / Catálogo público de trabalhos
 Route::get('/portfolio', [PortfolioController::class, 'index']);
+Route::get('/portfolio-categorias', [PortfolioController::class, 'listarCategorias']);
 Route::get('/portfolio/{portfolio}', [PortfolioController::class, 'show']);
 Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [PortfolioController::class, 'curtir']);
 
@@ -161,6 +162,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/portfolio/{portfolio}/toggle-destaque', [PortfolioController::class, 'toggleDestaque']);
         Route::patch('/admin/portfolio/{portfolio}/toggle-ativo',    [PortfolioController::class, 'toggleAtivo']);
         Route::delete('/admin/portfolio/{portfolio}',         [PortfolioController::class, 'destroy']);
+
+        // Gestão de Categorias e Serviços do Portfólio
+        Route::post('/admin/portfolio-categorias',            [PortfolioController::class, 'storeCategoria']);
+        Route::put('/admin/portfolio-categorias/{categoria}', [PortfolioController::class, 'updateCategoria']);
+        Route::delete('/admin/portfolio-categorias/{categoria}', [PortfolioController::class, 'destroyCategoria']);
 
         // WhatsApp (Evolution API — exclusivo Admin)
         Route::get('/whatsapp/status',                 [WhatsAppController::class, 'status']);

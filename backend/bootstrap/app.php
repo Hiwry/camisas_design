@@ -20,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/*',
         ]);
 
+        // Evita RouteNotFoundException: Route [login] not defined em requisições de API
+        $middleware->redirectGuestsTo(fn () => null);
+
         // Security headers em todas as respostas
         $middleware->append(\App\Http\Middleware\SecurityHeadersMiddleware::class);
     })
