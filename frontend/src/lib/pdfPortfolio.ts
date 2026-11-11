@@ -859,3 +859,4 @@ export async function gerarPdfModeloIndividual(
   onProgresso?.(100, 'Ficha técnica gerada com sucesso!')
   return doc
 }
+
