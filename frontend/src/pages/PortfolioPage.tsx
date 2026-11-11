@@ -6,6 +6,7 @@ import { portfolioService, PortfolioItem } from '@/services/api'
 import ModalDetalhePortfolio from '@/components/portfolio/ModalDetalhePortfolio'
 import ModalGerenciarPortfolio from '@/components/portfolio/ModalGerenciarPortfolio'
 import ModalPainelGerenciadorPortfolio from '@/components/portfolio/ModalPainelGerenciadorPortfolio'
+import ModalExportarPdfPortfolio from '@/components/portfolio/ModalExportarPdfPortfolio'
 import toast from 'react-hot-toast'
 import {
   Sparkles,
@@ -29,6 +30,7 @@ import {
   Package,
   SlidersHorizontal,
   Settings,
+  FileText,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -84,6 +86,7 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
   const [itemParaEditar, setItemParaEditar] = useState<PortfolioItem | null>(null)
   const [showModalGerenciar, setShowModalGerenciar] = useState<boolean>(false)
   const [showPainelGerenciador, setShowPainelGerenciador] = useState<boolean>(false)
+  const [showModalPdf, setShowModalPdf] = useState<boolean>(false)
 
   // Consulta de Categorias & Serviços Cadastrados
   const { data: categoriasData } = useQuery({
@@ -325,32 +328,44 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
               )
             })}
 
-            {isAdm && (
-              <div className="ml-auto sm:ml-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPainelGerenciador(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-all shadow-sm"
-                  title="Abrir Gerenciador de Portfólio (Trabalhos e Categorias)"
-                >
-                  <Layers className="w-3.5 h-3.5 text-[#d4a020]" />
-                  <span>Gerenciador</span>
-                </button>
+            <div className="ml-auto sm:ml-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowModalPdf(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 hover:border-[#d4a020]/60 transition-all shadow-sm"
+                title="Exportar ou Baixar Catálogo Completo em PDF"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#d4a020]" />
+                <span>Catálogo PDF</span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setItemParaEditar(null)
-                    setShowModalGerenciar(true)
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)' }}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Novo Trabalho</span>
-                </button>
-              </div>
-            )}
+              {isAdm && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowPainelGerenciador(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-all shadow-sm"
+                    title="Abrir Gerenciador de Portfólio (Trabalhos e Categorias)"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-[#d4a020]" />
+                    <span>Gerenciador</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemParaEditar(null)
+                      setShowModalGerenciar(true)
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shadow-md transition-all hover:opacity-90"
+                    style={{ background: 'linear-gradient(135deg,#d4a020,#e8b430)' }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Novo Trabalho</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1025,6 +1040,16 @@ export default function PortfolioPage({ isPublic = false }: PortfolioPageProps) 
             setItemParaEditar(null)
             setShowModalGerenciar(true)
           }}
+        />
+      )}
+
+      {/* ── Modal de Exportação do Catálogo em PDF ── */}
+      {showModalPdf && (
+        <ModalExportarPdfPortfolio
+          todosItens={itens}
+          categoriaAtiva={categoriaAtiva}
+          servicoAtivo={servicoAtivo}
+          onClose={() => setShowModalPdf(false)}
         />
       )}
     </div>

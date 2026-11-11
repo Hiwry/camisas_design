@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { PortfolioItem, portfolioService } from '@/services/api'
+import { gerarPdfModeloIndividual } from '@/lib/pdfPortfolio'
 import {
   X,
   Heart,
@@ -18,6 +19,8 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  Download,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -64,6 +67,7 @@ export default function ModalDetalhePortfolio({
   const [jaCurtiu, setJaCurtiu] = useState(false)
   const [copiouHex, setCopiouHex] = useState<string | null>(null)
   const [copiouLink, setCopiouLink] = useState(false)
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   // Reseta imagemAtiva se ultrapassar o tamanho da galeria
   useEffect(() => {
@@ -133,6 +137,30 @@ export default function ModalDetalhePortfolio({
     window.open(`https://wa.me/?text=${msg}`, '_blank')
   }
 
+  async function handleGerarPdfIndividual() {
+    setGerandoPdf(true)
+    try {
+      toast.loading('Gerando ficha em PDF deste modelo...', { id: 'pdf-modelo' })
+      const doc = await gerarPdfModeloIndividual(item, {
+        empresaNome: 'Camisetas Design',
+        whatsapp: '(82) 98888-7777',
+      })
+      const nomeLimpo = item.titulo
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      doc.save(`modelo-${nomeLimpo || 'fardamento'}-2026.pdf`)
+      toast.success('Ficha técnica em PDF baixada com sucesso!', { id: 'pdf-modelo' })
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao gerar PDF do modelo.', { id: 'pdf-modelo' })
+    } finally {
+      setGerandoPdf(false)
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
@@ -174,6 +202,17 @@ export default function ModalDetalhePortfolio({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={handleGerarPdfIndividual}
+              disabled={gerandoPdf}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-all disabled:opacity-50"
+              title="Baixar ficha técnica em PDF deste modelo"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#d4a020]" />
+              <span className="hidden sm:inline">{gerandoPdf ? 'Gerando...' : 'PDF do Modelo'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleCurtir}
@@ -426,6 +465,16 @@ export default function ModalDetalhePortfolio({
                   Criar Pedido com Base Nesse Estilo
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleGerarPdfIndividual}
+                disabled={gerandoPdf}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 hover:border-[#d4a020]/50 transition-all shadow-md"
+              >
+                <FileText className="w-4 h-4 text-[#d4a020]" />
+                {gerandoPdf ? 'Gerando Ficha Técnica...' : 'Baixar Apresentação em PDF Deste Modelo'}
+              </button>
 
               <button
                 type="button"
