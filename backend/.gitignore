@@ -17,5 +17,7 @@
 !/bootstrap/cache/.gitignore
 *.log
 /public/storage
+/database/backups/
+*.sql
 
 
