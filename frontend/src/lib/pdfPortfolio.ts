@@ -18,6 +18,12 @@ export interface OpcoesCatalogoPdf {
   onProgresso?: (porcentagem: number, mensagem: string) => void
 }
 
+export interface ImagemCarregada {
+  base64: string
+  width: number
+  height: number
+}
+
 /**
  * Converte cor HEX (#RRGGBB ou #RGB) para tupla [R, G, B]
  */
@@ -40,37 +46,23 @@ function hexParaRgb(hex: string): [number, number, number] {
 }
 
 /**
- * Carrega imagem a partir de uma URL e converte para base64 com tratamento de CORS e redimensionamento seguro
+ * Carrega imagem a partir de uma URL e retorna base64 e suas dimensões naturais
  */
-async function carregarImagemBase64(url: string): Promise<string | null> {
+async function carregarImagemComDimensoes(url: string): Promise<ImagemCarregada | null> {
   if (!url) return null
 
-  // Tenta via fetch blob primeiro
-  try {
-    const res = await fetch(url, { mode: 'cors' })
-    if (res.ok) {
-      const blob = await res.blob()
-      return await new Promise<string | null>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-      })
-    }
-  } catch {
-    // Continua para o fallback via canvas
-  }
-
-  // Fallback via Image + Canvas
-  return new Promise<string | null>((resolve) => {
+  return new Promise<ImagemCarregada | null>((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       try {
-        const canvas = document.createElement('canvas')
+        const origW = img.naturalWidth || img.width || 800
+        const origH = img.naturalHeight || img.height || 600
+
+        // Redimensiona no canvas apenas para otimizar peso do PDF mantendo a proporção exata
         const maxDim = 1200
-        let w = img.width
-        let h = img.height
+        let w = origW
+        let h = origH
 
         if (w > maxDim || h > maxDim) {
           if (w > h) {
@@ -82,19 +74,84 @@ async function carregarImagemBase64(url: string): Promise<string | null> {
           }
         }
 
+        const canvas = document.createElement('canvas')
         canvas.width = w
         canvas.height = h
         const ctx = canvas.getContext('2d')
         if (!ctx) return resolve(null)
         ctx.drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', 0.85))
+        const base64 = canvas.toDataURL('image/jpeg', 0.88)
+
+        resolve({
+          base64,
+          width: origW,
+          height: origH,
+        })
       } catch {
         resolve(null)
       }
     }
-    img.onerror = () => resolve(null)
+    img.onerror = () => {
+      // Fallback via fetch blob se falhar
+      fetch(url, { mode: 'cors' })
+        .then((res) => res.blob())
+        .then((blob) => {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            const b64 = reader.result as string
+            const fallbackImg = new Image()
+            fallbackImg.onload = () => {
+              resolve({
+                base64: b64,
+                width: fallbackImg.naturalWidth || 800,
+                height: fallbackImg.naturalHeight || 600,
+              })
+            }
+            fallbackImg.onerror = () => resolve(null)
+            fallbackImg.src = b64
+          }
+          reader.onerror = () => resolve(null)
+          reader.readAsDataURL(blob)
+        })
+        .catch(() => resolve(null))
+    }
     img.src = url
   })
+}
+
+/**
+ * Desenha uma imagem preservando 100% de sua proporção natural (object-fit: contain)
+ * Evita que a foto fique amassada, achatada ou esticada!
+ */
+function desenharImagemContida(
+  doc: jsPDF,
+  img: ImagemCarregada,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number
+) {
+  const imgRatio = img.width / img.height
+  const boxRatio = boxW / boxH
+
+  let renderW = boxW
+  let renderH = boxH
+
+  if (imgRatio > boxRatio) {
+    // Imagem mais horizontal que a caixa -> limita pela largura
+    renderW = boxW
+    renderH = boxW / imgRatio
+  } else {
+    // Imagem mais vertical que a caixa -> limita pela altura
+    renderH = boxH
+    renderW = boxH * imgRatio
+  }
+
+  // Centraliza perfeitamente dentro da caixa
+  const renderX = boxX + (boxW - renderW) / 2
+  const renderY = boxY + (boxH - renderH) / 2
+
+  doc.addImage(img.base64, 'JPEG', renderX, renderY, renderW, renderH, undefined, 'FAST')
 }
 
 /**
@@ -336,16 +393,16 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
   doc.text(`Documento emitido em ${dataHoje} • Camiseta Design Catálogo`, 105, 276, { align: 'center' })
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 2. PRÉ-CARREGAMENTO DAS IMAGENS DOS MODELOS
+  // 2. PRÉ-CARREGAMENTO DAS IMAGENS DOS MODELOS (PRESERVANDO PROPORÇÃO)
   // ──────────────────────────────────────────────────────────────────────────
   onProgresso?.(20, 'Carregando fotos dos modelos em alta definição...')
-  const imagensBase64: (string | null)[] = []
+  const imagensCarregadas: (ImagemCarregada | null)[] = []
 
   for (let i = 0; i < itens.length; i++) {
     const item = itens[i]
     const url = item.imagem_principal || item.galeria?.[0] || ''
-    const b64 = await carregarImagemBase64(url)
-    imagensBase64.push(b64)
+    const imgObj = await carregarImagemComDimensoes(url)
+    imagensCarregadas.push(imgObj)
     const progressoAtual = Math.round(20 + ((i + 1) / itens.length) * 45)
     onProgresso?.(progressoAtual, `Processando imagem ${i + 1} de ${itens.length}...`)
   }
@@ -373,12 +430,12 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
 
     itensDaPagina.forEach((item, idxNaPagina) => {
       const idxGlobal = p * modelosPorPagina + idxNaPagina
-      const imagemB64 = imagensBase64[idxGlobal]
+      const imagemObj = imagensCarregadas[idxGlobal]
 
       // Posição Y do Card (Card 1: y=22; Card 2: y=152)
       const cardY = 22 + idxNaPagina * 130
       const cardW = 186
-      const cardH = 122
+      const cardH = 124
 
       // Container Card
       doc.setFillColor(16, 16, 21)
@@ -390,22 +447,22 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
       doc.setFillColor(212, 160, 32)
       doc.roundedRect(12, cardY, 2.5, cardH, 1, 1, 'F')
 
-      // ── ÁREA DA IMAGEM (Lado Esquerdo: 86mm x 110mm) ──
-      const imgBoxX = 18
+      // ── ÁREA DA IMAGEM (Lado Esquerdo: 90mm x 112mm) ──
+      const imgBoxX = 17
       const imgBoxY = cardY + 6
-      const imgBoxW = 84
-      const imgBoxH = 110
+      const imgBoxW = 90
+      const imgBoxH = 112
 
-      // Moldura da imagem
+      // Moldura escura da imagem
       doc.setFillColor(8, 8, 10)
       doc.setDrawColor(32, 32, 38)
       doc.roundedRect(imgBoxX, imgBoxY, imgBoxW, imgBoxH, 2, 2, 'FD')
 
-      if (imagemB64) {
+      if (imagemObj) {
         try {
-          doc.addImage(imagemB64, 'JPEG', imgBoxX + 1, imgBoxY + 1, imgBoxW - 2, imgBoxH - 2, undefined, 'FAST')
+          // Renderiza preservando a proporção natural (sem achatar nem amassar!)
+          desenharImagemContida(doc, imagemObj, imgBoxX + 2, imgBoxY + 2, imgBoxW - 4, imgBoxH - 4)
         } catch {
-          // Fallback caso imagem não renderize
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(8)
           doc.setTextColor(161, 161, 170)
@@ -426,8 +483,9 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
       doc.setTextColor(0, 0, 0)
       doc.text(`#${String(idxGlobal + 1).padStart(2, '0')}`, imgBoxX + 11, imgBoxY + 5.5, { align: 'center' })
 
-      // ── ÁREA DE TEXTO E DETALHES (Lado Direito: 108mm a 192mm) ──
-      const infoX = 107
+      // ── ÁREA DE TEXTO E DETALHES (Lado Direito: 112mm a 194mm) ──
+      const infoX = 112
+      const infoW = 82
       let curY = cardY + 11
 
       // Tags de Categoria e Técnica
@@ -437,38 +495,38 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
       const categoriaFormatada = (item.categoria || 'ESPORTIVO').toUpperCase()
       const servicoFormatado = (item.servico || 'SUBLIMAÇÃO').toUpperCase()
       doc.text(`${categoriaFormatada}  •  ${servicoFormatado}`, infoX, curY)
-      curY += 7
+      curY += 6.5
 
       // Título do Modelo
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(13)
+      doc.setFontSize(12)
       doc.setTextColor(255, 255, 255)
-      doc.text(item.titulo, infoX, curY, { maxWidth: 86 })
-      curY += 7
+      doc.text(item.titulo, infoX, curY, { maxWidth: infoW })
+      curY += 6.5
 
       // Subtítulo / Resumo
       if (item.subtitulo) {
         doc.setFont('helvetica', 'italic')
-        doc.setFontSize(7.5)
+        doc.setFontSize(7)
         doc.setTextColor(161, 161, 170)
-        doc.text(item.subtitulo, infoX, curY, { maxWidth: 86, lineHeightFactor: 1.25 })
-        curY += 8
+        doc.text(item.subtitulo, infoX, curY, { maxWidth: infoW, lineHeightFactor: 1.2 })
+        curY += 7.5
       }
 
       // Descrição Curta
       if (item.descricao) {
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(7.5)
+        doc.setFontSize(7)
         doc.setTextColor(140, 140, 148)
-        const descTexto = item.descricao.length > 180 ? item.descricao.substring(0, 177) + '...' : item.descricao
-        doc.text(descTexto, infoX, curY, { maxWidth: 86, lineHeightFactor: 1.35 })
-        curY += 16
+        const descTexto = item.descricao.length > 130 ? item.descricao.substring(0, 127) + '...' : item.descricao
+        doc.text(descTexto, infoX, curY, { maxWidth: infoW, lineHeightFactor: 1.3 })
+        curY += 13
       } else {
-        curY += 6
+        curY += 4
       }
 
       // Ficha Técnica Rápida (Grade de 4 caixinhas)
-      const fBoxW = 41
+      const fBoxW = 39
       const fBoxH = 11
 
       // Caixa 1: Tecido
@@ -482,22 +540,26 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(7)
       doc.setTextColor(244, 244, 245)
-      doc.text(item.tecido || 'Dry-Fit UV50+', infoX + 3, curY + 8.5, { maxWidth: 36 })
+      doc.text(item.tecido || 'Dry-Fit UV50+', infoX + 3, curY + 8.5, { maxWidth: 33 })
 
-      // Caixa 2: Técnica
-      doc.roundedRect(infoX + 44, curY, fBoxW, fBoxH, 1.5, 1.5, 'FD')
+      // Caixa 2: Técnica (Sempre redefine fill e stroke para não herdar branco!)
+      doc.setFillColor(22, 22, 28)
+      doc.setDrawColor(38, 38, 44)
+      doc.roundedRect(infoX + 43, curY, fBoxW, fBoxH, 1.5, 1.5, 'FD')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(6)
       doc.setTextColor(113, 113, 122)
-      doc.text('ESTAMPARIA', infoX + 47, curY + 4)
+      doc.text('ESTAMPARIA', infoX + 46, curY + 4)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(7)
       doc.setTextColor(244, 244, 245)
-      doc.text(item.tecnica || 'Sublimação Total', infoX + 47, curY + 8.5, { maxWidth: 36 })
+      doc.text(item.tecnica || 'Sublimação Total', infoX + 46, curY + 8.5, { maxWidth: 33 })
 
       curY += 13
 
-      // Caixa 3: Cliente
+      // Caixa 3: Cliente (Sempre redefine fill e stroke)
+      doc.setFillColor(22, 22, 28)
+      doc.setDrawColor(38, 38, 44)
       doc.roundedRect(infoX, curY, fBoxW, fBoxH, 1.5, 1.5, 'FD')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(6)
@@ -506,20 +568,22 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(7)
       doc.setTextColor(244, 244, 245)
-      doc.text(item.cliente || 'Confecção Parceira', infoX + 3, curY + 8.5, { maxWidth: 36 })
+      doc.text(item.cliente || 'Confecção Parceira', infoX + 3, curY + 8.5, { maxWidth: 33 })
 
-      // Caixa 4: Ano
-      doc.roundedRect(infoX + 44, curY, fBoxW, fBoxH, 1.5, 1.5, 'FD')
+      // Caixa 4: Ano (Sempre redefine fill e stroke)
+      doc.setFillColor(22, 22, 28)
+      doc.setDrawColor(38, 38, 44)
+      doc.roundedRect(infoX + 43, curY, fBoxW, fBoxH, 1.5, 1.5, 'FD')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(6)
       doc.setTextColor(113, 113, 122)
-      doc.text('ANO', infoX + 47, curY + 4)
+      doc.text('ANO', infoX + 46, curY + 4)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(7)
       doc.setTextColor(244, 244, 245)
-      doc.text(item.ano || '2026', infoX + 47, curY + 8.5)
+      doc.text(item.ano || '2026', infoX + 46, curY + 8.5)
 
-      curY += 15
+      curY += 14.5
 
       // Paleta de Cores
       if (item.cores && item.cores.length > 0) {
@@ -530,7 +594,7 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
         curY += 4.5
 
         let colorX = infoX
-        item.cores.slice(0, 5).forEach((corHex) => {
+        item.cores.slice(0, 4).forEach((corHex) => {
           const [r, g, b] = hexParaRgb(corHex)
           // Círculo colorido
           doc.setFillColor(r, g, b)
@@ -544,7 +608,7 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
           doc.setTextColor(212, 212, 216)
           doc.text(corHex.toUpperCase(), colorX + 6.5, curY + 1)
 
-          colorX += 17
+          colorX += 19
         })
 
         curY += 7.5
@@ -552,11 +616,21 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
 
       // Botão / Chamada para o WhatsApp desse modelo
       doc.setFillColor(212, 160, 32)
-      doc.roundedRect(infoX, curY, 85, 8, 1.5, 1.5, 'F')
+      doc.roundedRect(infoX, curY, infoW, 7.5, 1.5, 1.5, 'F')
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7.5)
+      doc.setFontSize(7)
       doc.setTextColor(0, 0, 0)
-      doc.text('PEDIR ORÇAMENTO COM BASE NESTE ESTILO →', infoX + 42.5, curY + 5.2, { align: 'center' })
+      doc.text('PEDIR ESTE MODELO NO WHATSAPP →', infoX + infoW / 2, curY + 5, { align: 'center' })
+
+      if (whatsappNum) {
+        const cleanPhone = whatsappNum.replace(/\D/g, '')
+        if (cleanPhone) {
+          const itemMsg = encodeURIComponent(
+            `Olá! Vi o modelo "${item.titulo}" (${item.categoria.toUpperCase()}) no catálogo e gostaria de um orçamento!`
+          )
+          doc.link(infoX, curY, infoW, 7.5, { url: `https://wa.me/55${cleanPhone}?text=${itemMsg}` })
+        }
+      }
     })
   }
 
@@ -696,7 +770,7 @@ export async function gerarPdfModeloIndividual(
   const whatsappNum = contato.whatsapp || '(82) 99999-9999'
 
   // Carregar imagem principal
-  const imgB64 = await carregarImagemBase64(item.imagem_principal)
+  const imgObj = await carregarImagemComDimensoes(item.imagem_principal)
   onProgresso?.(50, 'Montando layout da ficha técnica...')
 
   // Fundo escuro
@@ -711,7 +785,7 @@ export async function gerarPdfModeloIndividual(
   // Cabeçalho
   desenharCabecalhoInterno(doc, 'FICHA TÉCNICA DO MODELO', empresaNome)
 
-  // ── FOTO DO MODELO EM ALTA RESOLUÇÃO ──
+  // ── FOTO DO MODELO EM ALTA RESOLUÇÃO (PRESERVANDO PROPORÇÃO) ──
   const imgX = 14
   const imgY = 22
   const imgW = 182
@@ -721,9 +795,9 @@ export async function gerarPdfModeloIndividual(
   doc.setDrawColor(38, 38, 46)
   doc.roundedRect(imgX, imgY, imgW, imgH, 3, 3, 'FD')
 
-  if (imgB64) {
+  if (imgObj) {
     try {
-      doc.addImage(imgB64, 'JPEG', imgX + 2, imgY + 2, imgW - 4, imgH - 4, undefined, 'FAST')
+      desenharImagemContida(doc, imgObj, imgX + 2, imgY + 2, imgW - 4, imgH - 4)
     } catch {
       // ignore
     }
