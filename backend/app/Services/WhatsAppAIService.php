@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class WhatsAppAIService
@@ -366,16 +367,16 @@ class WhatsAppAIService
     /**
      * Processa uma mensagem recebida e responde adequadamente ao perfil
      */
-    public function processarMensagem(string $numero, string $mensagem): void
+    public function processarMensagem(string $numero, string $mensagem, ?array $midiaInfo = null): void
     {
         try {
             $mensagem = trim($mensagem);
 
-            if (empty($mensagem)) {
+            if (empty($mensagem) && empty($midiaInfo)) {
                 return;
             }
 
-            Log::info("WhatsApp Bot: Mensagem de {$numero}: {$mensagem}");
+            Log::info("WhatsApp Bot: Mensagem de {$numero}: {$mensagem}" . ($midiaInfo ? " [midia: {$midiaInfo['tipo']}]" : ""));
 
             $remetente = $this->identificarRemetente($numero);
             $stateKey = 'wa_fluxo_pedido_' . $numero;
@@ -394,9 +395,52 @@ class WhatsAppAIService
 
             // Se o usuário está no meio do fluxo conversacional para criar um pedido
             if ($estado) {
-                $resposta = $this->processarEtapaPedido($numero, $mensagem, $estado, $remetente);
+                $resposta = $this->processarEtapaPedido($numero, $mensagem, $estado, $remetente, $midiaInfo);
                 $this->wa->enviarTexto($numero, $resposta);
                 return;
+            }
+
+            // SE RECEBEU UMA FOTO/DOCUMENTO FORA DO FLUXO:
+            // Anexa automaticamente ao último pedido ativo/recente do cliente!
+            if (!empty($midiaInfo)) {
+                $ultimoPedidoId = Cache::get('wa_ultimo_pedido_' . $numero)
+                    ?? $this->buscarPedidosPorNumero($numero)->first()?->id;
+
+                if ($ultimoPedidoId) {
+                    $pedido = Pedido::find($ultimoPedidoId);
+                    if ($pedido) {
+                        $arquivoSalvo = $this->salvarMidiaWhatsApp($midiaInfo, $pedido->id);
+                        if ($arquivoSalvo) {
+                            $refs = $pedido->referencias ?? [];
+                            $refs[] = $arquivoSalvo;
+                            $pedido->referencias = $refs;
+                            $pedido->save();
+
+                            $appUrl = rtrim(config('app.url'), '/');
+                            $urlRastreio = "{$appUrl}/rastreio?tel={$numero}";
+
+                            $resposta = "📸 *Foto/Referência recebida com sucesso!* 👕🎨\n"
+                                . "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                . "Anexamos a imagem ao seu *Pedido #{$pedido->id} — {$pedido->titulo}*.\n\n"
+                                . "Nossa equipe de designers já tem acesso à sua referência no painel de criação!\n\n"
+                                . "🌐 Link do seu pedido para acompanhar e enviar mais arquivos:\n👉 {$urlRastreio}";
+
+                            $this->wa->enviarTexto($numero, $resposta);
+
+                            // Notifica Admin
+                            if (!empty($this->adminNumber)) {
+                                try {
+                                    $admins = explode(',', $this->adminNumber);
+                                    $adminDestino = trim($admins[0]);
+                                    if (!empty($adminDestino) && $adminDestino !== '*') {
+                                        $this->wa->enviarTexto($adminDestino, "📸 *Nova foto/referência anexada pelo cliente via WhatsApp!*\n• *Pedido:* #{$pedido->id} — {$pedido->titulo}\n• *Cliente:* {$pedido->nome_cliente}\n• *Painel:* {$appUrl}/pedidos/{$pedido->id}");
+                                    }
+                                } catch (\Throwable $te) {}
+                            }
+                            return;
+                        }
+                    }
+                }
             }
 
             // Camada 1: Classificação local (0 tokens)
@@ -1103,7 +1147,7 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
     /**
      * Processa cada etapa da máquina de estados para criação de pedido via WhatsApp
      */
-    private function processarEtapaPedido(string $numero, string $mensagem, array $estado, array $remetente): string
+    private function processarEtapaPedido(string $numero, string $mensagem, array $estado, array $remetente, ?array $midiaInfo = null): string
     {
         $stateKey = 'wa_fluxo_pedido_' . $numero;
         $etapa = $estado['etapa'] ?? 'nome';
@@ -1175,14 +1219,23 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             };
 
             return "📝 *Detalhes e Observações ({$tipoNome})*\n\n"
-                . "Descreva as cores desejadas, quantidade estimada de peças, referências ou elementos da estampa (escudo, patrocinadores, números):\n\n"
+                . "Descreva cores, referências, quantidade estimada ou *envie fotos da peça/estampa diretamente aqui*:\n\n"
                 . "_(Se preferir explicar depois ou enviar fotos em seguida, basta digitar *nenhuma*)_";
         }
 
-        // ETAPA 3: Coleta Observações e Cria o Pedido no Banco
+        // ETAPA 3: Coleta Observações / Foto e Cria o Pedido no Banco
         if ($etapa === 'observacoes') {
             $obsLower = mb_strtolower(trim($mensagem));
-            $obs = ($obsLower === 'nenhuma' || $obsLower === 'nao' || $obsLower === 'não') ? null : $mensagem;
+            $obs = ($obsLower === 'nenhuma' || $obsLower === 'nao' || $obsLower === 'não' || $obsLower === '[foto/referência enviada]') ? null : $mensagem;
+
+            // Salva foto de referência enviada nesta etapa se houver
+            $referenciasIniciais = $estado['referencias'] ?? [];
+            if (!empty($midiaInfo)) {
+                $fotoSalva = $this->salvarMidiaWhatsApp($midiaInfo);
+                if ($fotoSalva) {
+                    $referenciasIniciais[] = $fotoSalva;
+                }
+            }
 
             // Busca ou associa à confecção correta
             $confeccao = null;
@@ -1222,6 +1275,7 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                     'status'         => 'aguardando_briefing',
                     'observacoes'    => $obs,
                     'prazo'          => $prazoCalculado,
+                    'referencias'    => !empty($referenciasIniciais) ? $referenciasIniciais : null,
                 ];
 
                 if ($this->hasColumnSafe('pedidos', 'cliente_whatsapp')) {
@@ -1246,6 +1300,9 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                 }
 
                 Cache::forget($stateKey);
+
+                // Salva em cache o último pedido do usuário para anexar fotos subsequentes
+                Cache::put('wa_ultimo_pedido_' . $numero, $pedido->id, now()->addDays(2));
             } catch (\Throwable $e) {
                 Log::error("WhatsApp Bot: Erro ao criar pedido no banco: " . $e->getMessage(), [
                     'estado' => $estado,
@@ -1276,6 +1333,7 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
                             . "• *WhatsApp:* {$numero} (https://wa.me/{$numero})\n"
                             . "• *Processo:* {$tipoNome}\n"
                             . ($obs ? "• *Obs:* {$obs}\n" : "")
+                            . (!empty($referenciasIniciais) ? "• *Fotos anexadas:* " . count($referenciasIniciais) . " arquivo(s)\n" : "")
                             . "\n👉 Painel: {$appUrl}/pedidos/{$pedido->id}";
                         $this->wa->enviarTexto($adminDestino, $msgAdmin);
                     }
@@ -1287,24 +1345,102 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             $prazoTxt = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : null;
             $urlRastreio = rtrim(config('app.url'), '/') . "/rastreio?tel={$numero}";
 
+            $avisoFoto = !empty($referenciasIniciais)
+                ? "📸 *Foto de referência anexada com sucesso ao pedido!* ✅\n\n"
+                : "";
+
             return "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
                 . "━━━━━━━━━━━━━━━━━━━━━\n\n"
-                . "📋 *Resumo:*\n"
+                . "📋 *Resumo do Pedido:*\n"
                 . "• *Pedido:* #{$pedido->id}\n"
                 . "• *Peça:* {$pedido->titulo}\n"
                 . "• *Processo:* {$tipoNome}\n"
                 . ($prazoTxt ? "• *Previsão Inicial:* {$prazoTxt}\n" : "")
                 . "• *Status:* 📝 Aguardando Briefing / Criação\n"
                 . ($obs ? "• *Obs:* {$obs}\n" : "")
-                . "\n🎨 Nossa equipe de designers já recebeu seus dados e vai iniciar sua arte!\n\n"
-                . "💡 *Dica:* Se você tiver fotos, logos ou referências de estampas, pode enviar aqui mesmo neste chat!\n\n"
-                . "🌐 Acompanhe seus pedidos em tempo real:\n"
-                . "👉 {$urlRastreio}\n\n"
+                . "\n" . $avisoFoto
+                . "🎨 Nossa equipe de designers já recebeu seus dados e vai iniciar sua arte!\n\n"
+                . "📸 *Deseja enviar mais fotos, logos ou referências da estampa?*\n"
+                . "• Você pode mandar as fotos diretamente aqui no WhatsApp 💬\n"
+                . "• Ou anexar fotos através do link do seu pedido:\n"
+                . "👉 {$urlRastreio} 🌐\n\n"
                 . "_Muito obrigado pela preferência! Se precisar de algo, é só mandar mensagem._";
         }
 
         Cache::forget($stateKey);
         return "⚠️ Fluxo reiniciado. Como posso te ajudar?";
+    }
+
+    /**
+     * Salva a mídia recebida pelo WhatsApp (imagem/documento) em storage/pedidos/referencias
+     */
+    public function salvarMidiaWhatsApp(array $midiaInfo, ?int $pedidoId = null): ?array
+    {
+        try {
+            $base64 = $midiaInfo['base64'] ?? null;
+            $mimetype = $midiaInfo['mimetype'] ?? 'image/jpeg';
+
+            // Se não veio base64 direto no webhook, tenta buscar na Evolution API
+            if (empty($base64) && !empty($midiaInfo['msgDados'])) {
+                $busca = $this->wa->obterMidiaBase64($midiaInfo['msgDados']);
+                if ($busca && !empty($busca['base64'])) {
+                    $base64 = $busca['base64'];
+                    $mimetype = $busca['mimetype'] ?? $mimetype;
+                }
+            }
+
+            if (empty($base64)) {
+                Log::warning("salvarMidiaWhatsApp: Não foi possível obter base64 da mídia.");
+                return null;
+            }
+
+            // Remove cabeçalho data:image/...;base64, se existir
+            if (str_contains($base64, ',')) {
+                $base64 = explode(',', $base64)[1];
+            }
+
+            $binaryData = base64_decode($base64);
+            if (!$binaryData) {
+                Log::warning("salvarMidiaWhatsApp: Falha ao decodificar base64.");
+                return null;
+            }
+
+            $ext = match ($mimetype) {
+                'image/png'               => 'png',
+                'image/webp'              => 'webp',
+                'image/gif'               => 'gif',
+                'application/pdf'         => 'pdf',
+                'image/jpeg', 'image/jpg' => 'jpg',
+                default                   => 'jpg',
+            };
+
+            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+            $pasta = 'pedidos/referencias';
+            $prefix = $pedidoId ? "ref_pedido_{$pedidoId}_" : "ref_wa_";
+            $filename = $prefix . uniqid() . '.' . $ext;
+            $path = "{$pasta}/{$filename}";
+
+            Storage::disk($disk)->put($path, $binaryData);
+
+            $url = Storage::disk($disk)->url($path);
+
+            // Garante URL absoluta caso o disco seja public local
+            if (!str_starts_with($url, 'http')) {
+                $url = rtrim(config('app.url'), '/') . '/' . ltrim($url, '/');
+            }
+
+            Log::info("salvarMidiaWhatsApp: Imagem salva com sucesso em {$path} (URL: {$url})");
+
+            return [
+                'url'      => $url,
+                'nome'     => "WhatsApp_Ref_" . date('dmy_Hi') . ".{$ext}",
+                'tipo'     => $ext,
+                'tamanho'  => strlen($binaryData),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("salvarMidiaWhatsApp erro: " . $e->getMessage());
+            return null;
+        }
     }
 
     /**

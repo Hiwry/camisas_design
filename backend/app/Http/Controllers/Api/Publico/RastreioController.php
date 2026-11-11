@@ -7,6 +7,7 @@ use App\Models\Confeccao;
 use App\Models\Pedido;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class RastreioController extends Controller
 {
@@ -151,6 +152,7 @@ class RastreioController extends Controller
                 'confeccao_nome'  => $p->confeccao?->nome ?? null,
                 'preview_url'     => $arteAtiva?->preview_url ?? $arteAtiva?->arquivo_url ?? null,
                 'tem_arte'        => $p->artes->isNotEmpty(),
+                'referencias'     => $p->referencias ?? [],
             ];
         });
 
@@ -201,6 +203,77 @@ class RastreioController extends Controller
         }
 
         return array_values(array_unique(array_filter($variants)));
+    }
+
+    /**
+     * POST /api/publico/pedidos/{id}/anexar-referencias
+     *
+     * Permite ao cliente anexar fotos e arquivos de referência através do portal de rastreio
+     */
+    public function anexarReferencias(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'telefone'   => 'required|string|min:8|max:30',
+            'arquivos'   => 'required|array|min:1',
+            'arquivos.*' => 'file|max:30720', // até 30MB cada arquivo
+        ]);
+
+        $pedido = Pedido::with('confeccao')->find($id);
+        if (!$pedido) {
+            return response()->json(['message' => 'Pedido não encontrado.'], 404);
+        }
+
+        // Validação de segurança: o telefone informado deve pertencer ao cliente do pedido
+        $rawInput = trim($request->input('telefone'));
+        $digits = preg_replace('/\D/', '', $rawInput);
+        $variants = $this->gerarVariacoesNumero($digits);
+
+        $pertence = false;
+        $telefonesPedido = array_filter([
+            $pedido->cliente_whatsapp,
+            $pedido->whatsapp_cliente,
+            $pedido->confeccao?->whatsapp,
+            $pedido->confeccao?->telefone,
+        ]);
+
+        foreach ($telefonesPedido as $tel) {
+            $c = preg_replace('/\D/', '', $tel);
+            if (in_array($c, $variants)) {
+                $pertence = true;
+                break;
+            }
+        }
+
+        if (!$pertence) {
+            return response()->json(['message' => 'Número de telefone não autorizado para este pedido.'], 403);
+        }
+
+        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+        $refsAtuais = $pedido->referencias ?? [];
+
+        foreach ($request->file('arquivos') as $arquivo) {
+            $path = $arquivo->store('pedidos/referencias', $disk);
+            $url = Storage::disk($disk)->url($path);
+            if (!str_starts_with($url, 'http')) {
+                $url = rtrim(config('app.url'), '/') . '/' . ltrim($url, '/');
+            }
+
+            $refsAtuais[] = [
+                'url'     => $url,
+                'nome'    => $arquivo->getClientOriginalName(),
+                'tipo'    => strtolower($arquivo->getClientOriginalExtension()),
+                'tamanho' => $arquivo->getSize(),
+            ];
+        }
+
+        $pedido->referencias = $refsAtuais;
+        $pedido->save();
+
+        return response()->json([
+            'success'     => true,
+            'message'     => 'Fotos/referências anexadas com sucesso!',
+            'referencias' => $pedido->referencias,
+        ]);
     }
 }
 

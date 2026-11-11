@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { PortfolioItem, portfolioService } from '@/services/api'
 import {
   X,
@@ -16,6 +16,8 @@ import {
   Tag,
   Building,
   Maximize2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -33,12 +35,65 @@ export default function ModalDetalhePortfolio({
   onCurtir,
   onCriarPedidoComEstilo,
 }: Props) {
-  const galeria = item.galeria && item.galeria.length > 0 ? item.galeria : [item.imagem_principal]
+  // Limpeza e sincronização resiliente da galeria
+  const galeria = useMemo(() => {
+    const raw: string[] = Array.isArray(item.galeria) && item.galeria.length > 0
+      ? item.galeria.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+      : (item.imagem_principal ? [item.imagem_principal] : [])
+
+    if (item.imagem_principal) {
+      const isCustomPrincipal = !item.imagem_principal.includes('images.unsplash.com')
+      const galeriaSoTemUnsplash = raw.every((url) => typeof url === 'string' && url.includes('images.unsplash.com'))
+
+      // Se a imagem principal foi personalizada pelo usuário mas a galeria ainda tinha apenas fotos antigas de exemplo do Unsplash:
+      if (isCustomPrincipal && galeriaSoTemUnsplash && !raw.includes(item.imagem_principal)) {
+        return [item.imagem_principal]
+      }
+
+      // Se a imagem principal não estiver na galeria, garante que ela venha na 1ª posição
+      if (!raw.includes(item.imagem_principal)) {
+        return [item.imagem_principal, ...raw]
+      }
+    }
+
+    return raw.length > 0 ? raw : [item.imagem_principal]
+  }, [item.galeria, item.imagem_principal])
+
   const [imagemAtiva, setImagemAtiva] = useState(0)
   const [curtidasLocal, setCurtidasLocal] = useState(item.curtidas)
   const [jaCurtiu, setJaCurtiu] = useState(false)
   const [copiouHex, setCopiouHex] = useState<string | null>(null)
   const [copiouLink, setCopiouLink] = useState(false)
+
+  // Reseta imagemAtiva se ultrapassar o tamanho da galeria
+  useEffect(() => {
+    if (imagemAtiva >= galeria.length) {
+      setImagemAtiva(0)
+    }
+  }, [galeria, imagemAtiva])
+
+  // Navegação por teclado (Setas e ESC)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === 'ArrowLeft' && galeria.length > 1) {
+        setImagemAtiva((prev) => (prev > 0 ? prev - 1 : galeria.length - 1))
+      } else if (e.key === 'ArrowRight' && galeria.length > 1) {
+        setImagemAtiva((prev) => (prev < galeria.length - 1 ? prev + 1 : 0))
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [galeria.length, onClose])
+
+  function handleFotoAnterior() {
+    setImagemAtiva((prev) => (prev > 0 ? prev - 1 : galeria.length - 1))
+  }
+
+  function handleProximaFoto() {
+    setImagemAtiva((prev) => (prev < galeria.length - 1 ? prev + 1 : 0))
+  }
 
   async function handleCurtir() {
     if (jaCurtiu) return
@@ -162,45 +217,85 @@ export default function ModalDetalhePortfolio({
           {/* Coluna da Imagem e Galeria (7 cols) */}
           <div className="md:col-span-7 p-3.5 sm:p-5 flex flex-col justify-between bg-black/40">
             {/* Visualizador Principal */}
-            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800/80 group">
+            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800/80 group flex items-center justify-center">
+              {/* Fundo com desfoque ambiente da própria imagem */}
+              <div
+                className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none transition-all duration-500"
+                style={{ backgroundImage: `url(${galeria[imagemAtiva] || item.imagem_principal})` }}
+              />
+
+              {/* Imagem em exibição (sem cortes nas golas ou mangas) */}
               <img
+                key={imagemAtiva}
                 src={galeria[imagemAtiva] || item.imagem_principal}
                 alt={item.titulo}
-                className="w-full h-full object-cover transition-all duration-300 group-hover:scale-[1.02]"
+                className="relative z-10 max-h-full max-w-full object-contain p-1 transition-all duration-300 group-hover:scale-[1.02]"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none z-10" />
+
+              {/* Botões de Navegação Anterior/Próxima */}
+              {galeria.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleFotoAnterior()
+                    }}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md border border-white/10 shadow-lg transition-all hover:scale-110"
+                    title="Foto anterior (Seta para a esquerda)"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleProximaFoto()
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md border border-white/10 shadow-lg transition-all hover:scale-110"
+                    title="Próxima foto (Seta para a direita)"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
 
               <a
                 href={galeria[imagemAtiva] || item.imagem_principal}
                 target="_blank"
                 rel="noreferrer"
-                className="absolute top-3 right-3 p-2 rounded-lg bg-black/60 backdrop-blur-md text-zinc-300 hover:text-white hover:bg-black/80 transition-all border border-white/10"
+                className="absolute top-3 right-3 z-20 p-2 rounded-lg bg-black/60 backdrop-blur-md text-zinc-300 hover:text-white hover:bg-black/80 transition-all border border-white/10"
                 title="Abrir em resolução original"
               >
                 <Maximize2 className="w-4 h-4" />
               </a>
 
-              <div className="absolute bottom-3 left-3 text-xs text-zinc-300 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10">
+              <div className="absolute bottom-3 left-3 z-20 text-xs text-zinc-300 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 font-medium">
                 Visualização {imagemAtiva + 1} de {galeria.length}
               </div>
             </div>
 
             {/* Miniaturas da Galeria */}
             {galeria.length > 1 && (
-              <div className="flex items-center gap-2.5 mt-4 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex items-center gap-2.5 mt-4 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-zinc-700">
                 {galeria.map((foto, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setImagemAtiva(idx)}
                     className={clsx(
-                      'relative w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all',
+                      'relative w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all bg-zinc-950 flex items-center justify-center',
                       imagemAtiva === idx
-                        ? 'border-[#d4a020] scale-105 shadow-md shadow-[#d4a020]/20'
-                        : 'border-zinc-800 opacity-60 hover:opacity-100 hover:border-zinc-700'
+                        ? 'border-[#d4a020] scale-105 shadow-md shadow-[#d4a020]/25 ring-2 ring-[#d4a020]/40'
+                        : 'border-zinc-800 opacity-60 hover:opacity-100 hover:border-zinc-600'
                     )}
+                    title={`Visualizar foto ${idx + 1}`}
                   >
                     <img src={foto} alt="" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0.5 right-0.5 text-[9px] font-mono px-1 rounded bg-black/80 text-zinc-300 leading-none py-0.5">
+                      {idx + 1}
+                    </span>
                   </button>
                 ))}
               </div>

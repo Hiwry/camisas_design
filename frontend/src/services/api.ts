@@ -140,6 +140,14 @@ export const aprovacaoService = {
 export const rastreioService = {
   buscar: (telefone: string) =>
     api.post('/publico/rastreio', { telefone }).then((r) => r.data),
+  anexarReferencias: (pedidoId: number, telefone: string, arquivos: File[]) => {
+    const fd = new FormData()
+    fd.append('telefone', telefone)
+    arquivos.forEach((file) => fd.append('arquivos[]', file))
+    return api.post(`/publico/pedidos/${pedidoId}/anexar-referencias`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data)
+  },
 }
 
 export const creditoService = {

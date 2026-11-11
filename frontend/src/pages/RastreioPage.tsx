@@ -15,9 +15,13 @@ import {
   ChevronRight,
   ShieldCheck,
   Building2,
-  Calendar
+  Calendar,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react'
 import { rastreioService } from '@/services/api'
+import { resolveMediaUrl } from '@/lib/url'
 import toast from 'react-hot-toast'
 
 interface PedidoRastreio {
@@ -37,6 +41,7 @@ interface PedidoRastreio {
   confeccao_nome: string | null
   preview_url: string | null
   tem_arte: boolean
+  referencias?: Array<{ url: string; nome: string; tipo: string; tamanho?: number }> | null
 }
 
 interface ClienteInfo {
@@ -71,6 +76,7 @@ export default function RastreioPage() {
   const [pedidos, setPedidos] = useState<PedidoRastreio[]>([])
   const [cliente, setCliente] = useState<ClienteInfo | null>(null)
   const [filtroStatus, setFiltroStatus] = useState<string>('todos')
+  const [enviandoRefs, setEnviandoRefs] = useState<Record<number, boolean>>({})
 
   // Aplica máscara automática de telefone (BR)
   function formatarTelefone(valor: string) {
@@ -114,6 +120,28 @@ export default function RastreioPage() {
       toast.error(msg)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleUploadReferencias(pedidoId: number, e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setEnviandoRefs(prev => ({ ...prev, [pedidoId]: true }))
+    try {
+      const res = await rastreioService.anexarReferencias(pedidoId, telefone, Array.from(files))
+      if (res.success && res.referencias) {
+        toast.success('Fotos enviadas com sucesso!')
+        setPedidos(prev =>
+          prev.map(p => (p.id === pedidoId ? { ...p, referencias: res.referencias } : p))
+        )
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg || 'Erro ao enviar fotos. Tente novamente.')
+    } finally {
+      setEnviandoRefs(prev => ({ ...prev, [pedidoId]: false }))
+      e.target.value = ''
     }
   }
 
@@ -429,6 +457,86 @@ export default function RastreioPage() {
                               <p className="whitespace-pre-line leading-relaxed">{p.observacoes}</p>
                             </div>
                           )}
+
+                          {/* Fotos e Referências da Estampa / Upload do Cliente */}
+                          <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4 text-[#d4a020]" />
+                                <span className="text-xs font-bold text-zinc-200">
+                                  Fotos & Referências da Estampa
+                                </span>
+                                {p.referencias && p.referencias.length > 0 && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#d4a020]/15 text-[#d4a020] border border-[#d4a020]/30">
+                                    {p.referencias.length}
+                                  </span>
+                                )}
+                              </div>
+
+                              <label className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                enviandoRefs[p.id]
+                                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                                  : 'bg-[#d4a020]/15 hover:bg-[#d4a020]/25 text-[#d4a020] border border-[#d4a020]/30 hover:border-[#d4a020]/50'
+                              }`}>
+                                {enviandoRefs[p.id] ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Enviando...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-3.5 h-3.5" />
+                                    <span>+ Anexar Fotos</span>
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*,application/pdf"
+                                  disabled={enviandoRefs[p.id]}
+                                  className="hidden"
+                                  onChange={(e) => handleUploadReferencias(p.id, e)}
+                                />
+                              </label>
+                            </div>
+
+                            {p.referencias && p.referencias.length > 0 ? (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-1">
+                                {p.referencias.map((ref, idx) => {
+                                  const finalUrl = resolveMediaUrl(ref.url)
+                                  const ehImagem = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ref.tipo?.toLowerCase() ?? '') ||
+                                    /\.(png|jpe?g|gif|webp)($|\?)/i.test(ref.nome || ref.url || '')
+
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={finalUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="group aspect-square rounded-lg border border-zinc-800 hover:border-[#d4a020]/60 bg-black/40 overflow-hidden relative flex items-center justify-center transition-all"
+                                      title={ref.nome}
+                                    >
+                                      {ehImagem ? (
+                                        <img
+                                          src={finalUrl}
+                                          alt={ref.nome || `Ref ${idx + 1}`}
+                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                        />
+                                      ) : (
+                                        <div className="flex flex-col items-center justify-center p-1 text-center">
+                                          <span className="text-[10px] font-bold text-[#d4a020] uppercase">{ref.tipo || 'DOC'}</span>
+                                        </div>
+                                      )}
+                                    </a>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-zinc-500 italic">
+                                Nenhuma foto ou referência anexada ainda. Você pode enviar pelo WhatsApp ou clicar no botão acima.
+                              </p>
+                            )}
+                          </div>
 
                           {/* Miniatura da arte (se houver) */}
                           {p.preview_url && (

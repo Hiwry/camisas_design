@@ -156,6 +156,15 @@ class PortfolioController extends Controller
             }
         }
 
+        // Garantir que a imagem principal esteja no início da galeria
+        if (!empty($imagemPrincipal) && !in_array($imagemPrincipal, $galeria)) {
+            array_unshift($galeria, $imagemPrincipal);
+        }
+        $galeria = array_values(array_unique(array_filter($galeria)));
+        if (empty($galeria)) {
+            $galeria = [$imagemPrincipal];
+        }
+
         // Processar cores e tags
         $cores = $request->cores;
         if (is_string($cores)) {
@@ -203,6 +212,8 @@ class PortfolioController extends Controller
             'descricao'        => 'nullable|string',
             'imagem_principal' => 'nullable|string',
             'imagem_arquivo'   => 'nullable|image|max:10240',
+            'galeria'          => 'nullable',
+            'galeria_arquivos.*' => 'nullable|image|max:10240',
             'cliente'          => 'nullable|string|max:100',
             'ano'              => 'nullable|string|max:10',
             'tecido'           => 'nullable|string|max:100',
@@ -220,27 +231,46 @@ class PortfolioController extends Controller
             'ano', 'tecido', 'tecnica', 'destaque', 'ordem', 'ativo'
         ]);
 
+        $imagemPrincipal = $portfolio->imagem_principal;
         if ($request->hasFile('imagem_arquivo')) {
             $file = $request->file('imagem_arquivo');
             $path = $file->store('portfolio', $disk);
-            $data['imagem_principal'] = Storage::disk($disk)->url($path);
+            $imagemPrincipal = Storage::disk($disk)->url($path);
+            $data['imagem_principal'] = $imagemPrincipal;
         } elseif ($request->filled('imagem_principal')) {
-            $data['imagem_principal'] = $request->imagem_principal;
+            $imagemPrincipal = $request->imagem_principal;
+            $data['imagem_principal'] = $imagemPrincipal;
         }
 
-        if ($request->has('cores')) {
-            $cores = $request->cores;
-            $data['cores'] = is_string($cores) ? (json_decode($cores, true) ?? array_filter(array_map('trim', explode(',', $cores)))) : $cores;
-        }
-
-        if ($request->has('tags')) {
-            $tags = $request->tags;
-            $data['tags'] = is_string($tags) ? (json_decode($tags, true) ?? array_filter(array_map('trim', explode(',', $tags)))) : $tags;
-        }
-
+        // Galeria de imagens
+        $galeria = null;
         if ($request->has('galeria')) {
-            $galeria = $request->galeria;
-            $data['galeria'] = is_string($galeria) ? json_decode($galeria, true) : $galeria;
+            $rawGaleria = $request->galeria;
+            $galeria = is_string($rawGaleria) ? (json_decode($rawGaleria, true) ?? []) : (is_array($rawGaleria) ? $rawGaleria : []);
+        } elseif ($portfolio->galeria) {
+            $galeria = is_array($portfolio->galeria) ? $portfolio->galeria : (json_decode($portfolio->galeria, true) ?? []);
+        } else {
+            $galeria = [$imagemPrincipal];
+        }
+
+        // Se fez upload de novas imagens para a galeria
+        if ($request->hasFile('galeria_arquivos')) {
+            foreach ($request->file('galeria_arquivos') as $gFile) {
+                $gPath = $gFile->store('portfolio', $disk);
+                $galeria[] = Storage::disk($disk)->url($gPath);
+            }
+        }
+
+        // Garantir que a imagem principal esteja na galeria (e na 1ª posição se for nova/diferente)
+        if (!empty($imagemPrincipal)) {
+            if (!in_array($imagemPrincipal, $galeria)) {
+                array_unshift($galeria, $imagemPrincipal);
+            }
+        }
+
+        $galeria = array_values(array_unique(array_filter($galeria)));
+        if (!empty($galeria)) {
+            $data['galeria'] = $galeria;
         }
 
         $portfolio->update($data);

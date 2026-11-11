@@ -129,7 +129,7 @@ class WhatsAppService
                     'url'             => $fullUrl,
                     'headers'         => !empty($this->apiKey) ? ['apikey' => $this->apiKey] : null,
                     'webhookByEvents' => false,
-                    'webhookBase64'   => false,
+                    'webhookBase64'   => true,
                     'events'          => [
                         'MESSAGES_UPSERT',
                     ],
@@ -142,6 +142,31 @@ class WhatsAppService
             Log::error("Erro ao configurar webhook: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Obtém o arquivo de mídia (imagem/documento) em base64 da Evolution API
+     * POST /chat/getBase64FromMediaMessage/{instance}
+     */
+    public function obterMidiaBase64(array $messageData): ?array
+    {
+        try {
+            $res = $this->requisicao('POST', "/chat/getBase64FromMediaMessage/{$this->instance}", [
+                'message'      => $messageData,
+                'convertToMp4' => false,
+            ]);
+
+            if (!empty($res['base64'])) {
+                return [
+                    'base64'   => $res['base64'],
+                    'mimetype' => $res['mimetype'] ?? 'image/jpeg',
+                ];
+            }
+        } catch (\Throwable $e) {
+            Log::warning("WhatsAppService: Falha ao obter base64 da mídia: " . $e->getMessage());
+        }
+
+        return null;
     }
 
     /**

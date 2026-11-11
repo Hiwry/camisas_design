@@ -191,6 +191,8 @@ class WhatsAppController extends Controller
             return response()->json(['status' => 'ignored', 'reason' => 'group_message']);
         }
 
+        $midiaInfo = null;
+
         if (isset($dados['message'])) {
             $msgObj = $dados['message'];
 
@@ -203,6 +205,26 @@ class WhatsAppController extends Controller
             }
             if (isset($msgObj['viewOnceMessageV2']['message'])) {
                 $msgObj = $msgObj['viewOnceMessageV2']['message'];
+            }
+
+            // Identifica imagem ou documento recebido
+            if (isset($msgObj['imageMessage'])) {
+                $midiaInfo = [
+                    'tipo'     => 'imagem',
+                    'mimetype' => $msgObj['imageMessage']['mimetype'] ?? 'image/jpeg',
+                    'caption'  => $msgObj['imageMessage']['caption'] ?? null,
+                    'base64'   => $dados['base64'] ?? $msgObj['base64'] ?? $msgObj['imageMessage']['base64'] ?? null,
+                    'msgDados' => $dados,
+                ];
+            } elseif (isset($msgObj['documentMessage'])) {
+                $midiaInfo = [
+                    'tipo'     => 'documento',
+                    'mimetype' => $msgObj['documentMessage']['mimetype'] ?? 'application/octet-stream',
+                    'caption'  => $msgObj['documentMessage']['caption'] ?? null,
+                    'fileName' => $msgObj['documentMessage']['fileName'] ?? 'documento',
+                    'base64'   => $dados['base64'] ?? $msgObj['base64'] ?? $msgObj['documentMessage']['base64'] ?? null,
+                    'msgDados' => $dados,
+                ];
             }
 
             $mensagem = $msgObj['conversation'] 
@@ -222,9 +244,14 @@ class WhatsAppController extends Controller
             $mensagem = $dados['text'] ?? $dados['content'] ?? $dados['body'] ?? null;
         }
 
-        // Se não encontrou mensagem de texto, ignora (pode ser áudio sem transcrição etc.)
+        // Se veio mídia mas sem texto de legenda, define legenda padrão para o fluxo
+        if (empty($mensagem) && $midiaInfo) {
+            $mensagem = '[FOTO/REFERÊNCIA ENVIADA]';
+        }
+
+        // Se não encontrou mensagem de texto nem mídia, ignora
         if (!$mensagem || !$numero) {
-            return response()->json(['status' => 'ignored', 'reason' => 'no_text_message']);
+            return response()->json(['status' => 'ignored', 'reason' => 'no_text_or_media_message']);
         }
 
         // Extrai número limpo (remove @s.whatsapp.net etc.)
@@ -236,10 +263,10 @@ class WhatsAppController extends Controller
             return response()->json(['status' => 'ignored', 'reason' => 'from_me']);
         }
 
-        Log::info("WhatsApp Bot: Mensagem recebida de {$numeroLimpo}: {$mensagem} (fromMe: " . ($fromMe ? 'sim' : 'nao') . ")");
+        Log::info("WhatsApp Bot: Mensagem recebida de {$numeroLimpo}: {$mensagem} (midia: " . ($midiaInfo ? $midiaInfo['tipo'] : 'nao') . ", fromMe: " . ($fromMe ? 'sim' : 'nao') . ")");
 
         // Processa a mensagem com roteamento de perfis (admin, confecção parceira, cliente ou novo lead)
-        $this->ai->processarMensagem($numeroLimpo, $mensagem);
+        $this->ai->processarMensagem($numeroLimpo, $mensagem, $midiaInfo);
 
         return response()->json(['status' => 'success']);
     }

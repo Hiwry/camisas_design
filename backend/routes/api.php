@@ -52,6 +52,7 @@ Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [Portf
 
 // Rastreio público de pedidos pelo WhatsApp / Telefone
 Route::middleware('throttle:30,1')->post('/publico/rastreio', [RastreioController::class, 'rastrear']);
+Route::middleware('throttle:30,1')->post('/publico/pedidos/{id}/anexar-referencias', [RastreioController::class, 'anexarReferencias']);
 
 // Rotas públicas do módulo Grupos de Camisas
 Route::middleware('throttle:60,1')->group(function () {
