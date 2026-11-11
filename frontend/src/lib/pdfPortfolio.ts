@@ -614,22 +614,13 @@ export async function gerarPdfCatalogo(opcoes: OpcoesCatalogoPdf): Promise<jsPDF
         curY += 7.5
       }
 
-      // Botão / Chamada para o WhatsApp desse modelo
-      doc.setFillColor(212, 160, 32)
-      doc.roundedRect(infoX, curY, infoW, 7.5, 1.5, 1.5, 'F')
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7)
-      doc.setTextColor(0, 0, 0)
-      doc.text('PEDIR ESTE MODELO NO WHATSAPP →', infoX + infoW / 2, curY + 5, { align: 'center' })
-
-      if (whatsappNum) {
-        const cleanPhone = whatsappNum.replace(/\D/g, '')
-        if (cleanPhone) {
-          const itemMsg = encodeURIComponent(
-            `Olá! Vi o modelo "${item.titulo}" (${item.categoria.toUpperCase()}) no catálogo e gostaria de um orçamento!`
-          )
-          doc.link(infoX, curY, infoW, 7.5, { url: `https://wa.me/55${cleanPhone}?text=${itemMsg}` })
-        }
+      // Tags do Projeto (discretas e elegantes)
+      if (item.tags && item.tags.length > 0) {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(6.5)
+        doc.setTextColor(113, 113, 122)
+        const tagsStr = item.tags.slice(0, 4).map((t) => `#${t}`).join('   ')
+        doc.text(tagsStr, infoX, curY + 2, { maxWidth: infoW })
       }
     })
   }
