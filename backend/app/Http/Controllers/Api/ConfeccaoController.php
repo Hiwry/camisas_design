@@ -56,7 +56,7 @@ class ConfeccaoController extends Controller
             'email'         => 'nullable|email|max:255',
             'plano'         => 'required|in:avulso,basico,profissional,premium',
             'logo_url'      => 'nullable|string|max:500',
-            'logo_arquivo'  => 'nullable|image|max:10240',
+            'logo_arquivo'  => 'nullable|file|mimes:jpeg,jpg,png,webp,svg|max:10240',
             'criar_usuario' => 'nullable',
             'password'      => 'nullable|string|min:8',
         ]);
@@ -85,9 +85,20 @@ class ConfeccaoController extends Controller
         // Upload de logo se fornecido arquivo
         $logoUrl = $request->input('logo_url');
         if ($request->hasFile('logo_arquivo')) {
-            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
-            $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
-            $logoUrl = Storage::disk($disk)->url($path);
+            try {
+                @mkdir(storage_path('app/public/confeccoes/logos'), 0775, true);
+                $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+                $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
+                $logoUrl = Storage::disk($disk)->url($path);
+            } catch (\Throwable $e) {
+                Log::warning("ConfeccaoController@store: Falha em {$disk}: " . $e->getMessage() . ". Tentando disco public...");
+                try {
+                    $path = $request->file('logo_arquivo')->store('confeccoes/logos', 'public');
+                    $logoUrl = Storage::disk('public')->url($path);
+                } catch (\Throwable $e2) {
+                    Log::error("ConfeccaoController@store: Erro crítico ao salvar arquivo de logo: " . $e2->getMessage());
+                }
+            }
         }
 
         $plano = $request->plano;
@@ -108,7 +119,6 @@ class ConfeccaoController extends Controller
         } catch (\Illuminate\Database\QueryException $e) {
             Log::warning("ConfeccaoController: Erro SQL ao cadastrar confecção. Aplicando fallback de compatibilidade: " . $e->getMessage());
 
-            // Se o banco legado ainda tiver restrição NOT NULL em user_id, cria um stub silencioso
             if (!$userId) {
                 $stubEmail = 'cliente_' . preg_replace('/\D/', '', $request->whatsapp ?? '') . '_' . Str::random(6) . '@camisetadesign.local';
                 $stubUser = User::create([
@@ -148,8 +158,8 @@ class ConfeccaoController extends Controller
             'whatsapp'     => 'nullable|string|max:20',
             'email'        => 'nullable|email|max:255',
             'logo_url'     => 'nullable|string|max:500',
-            'logo_arquivo' => 'nullable|image|max:10240',
-            'remover_logo' => 'nullable|boolean',
+            'logo_arquivo' => 'nullable|file|mimes:jpeg,jpg,png,webp,svg|max:10240',
+            'remover_logo' => 'nullable',
         ];
 
         // Apenas admin tem permissão para alterar plano e status ativo
@@ -161,43 +171,78 @@ class ConfeccaoController extends Controller
 
         $request->validate($rules);
 
-        $camposPermitidos = $user->isAdmin()
-            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'limite_mensal', 'ativo', 'logo_url']
-            : ['nome', 'telefone', 'whatsapp', 'email', 'logo_url'];
+        try {
+            $camposPermitidos = $user->isAdmin()
+                ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'limite_mensal', 'ativo', 'logo_url']
+                : ['nome', 'telefone', 'whatsapp', 'email', 'logo_url'];
 
-        $dados = $request->only($camposPermitidos);
+            $dados = $request->only($camposPermitidos);
 
-        // Upload de logo
-        if ($request->hasFile('logo_arquivo')) {
-            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
-            $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
-            $dados['logo_url'] = Storage::disk($disk)->url($path);
-        } elseif ($request->boolean('remover_logo')) {
-            $dados['logo_url'] = null;
-        }
-
-        // Se o plano for alterado, sincroniza limite mensal se necessário
-        if (isset($dados['plano'])) {
-            if ($dados['plano'] === 'avulso') {
-                $dados['limite_mensal'] = 0;
-            } elseif (!isset($dados['limite_mensal'])) {
-                $dados['limite_mensal'] = Confeccao::LIMITES_PLANO[$dados['plano']] ?? 10;
+            // Upload de logo com fallback
+            if ($request->hasFile('logo_arquivo')) {
+                try {
+                    @mkdir(storage_path('app/public/confeccoes/logos'), 0775, true);
+                    $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+                    $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
+                    $dados['logo_url'] = Storage::disk($disk)->url($path);
+                } catch (\Throwable $e) {
+                    Log::warning("ConfeccaoController@update: Falha em {$disk}: " . $e->getMessage() . ". Tentando disco public...");
+                    try {
+                        $path = $request->file('logo_arquivo')->store('confeccoes/logos', 'public');
+                        $dados['logo_url'] = Storage::disk('public')->url($path);
+                    } catch (\Throwable $e2) {
+                        Log::error("ConfeccaoController@update: Erro crítico ao salvar arquivo de logo: " . $e2->getMessage());
+                    }
+                }
+            } elseif ($request->boolean('remover_logo') || $request->input('remover_logo') === '1') {
+                $dados['logo_url'] = null;
             }
-        }
 
-        $confeccao->update($dados);
-
-        // Se tiver usuário associado, sincroniza nome e email
-        if ($confeccao->user) {
-            $userUpdates = [];
-            if (!empty($dados['nome'])) $userUpdates['name'] = $dados['nome'];
-            if (!empty($dados['email'])) $userUpdates['email'] = $dados['email'];
-            if (!empty($userUpdates)) {
-                $confeccao->user->update($userUpdates);
+            // Se o plano for alterado, sincroniza limite mensal se necessário
+            if (isset($dados['plano'])) {
+                if ($dados['plano'] === 'avulso') {
+                    $dados['limite_mensal'] = 0;
+                } elseif (!isset($dados['limite_mensal'])) {
+                    $dados['limite_mensal'] = Confeccao::LIMITES_PLANO[$dados['plano']] ?? 10;
+                }
             }
-        }
 
-        return response()->json($confeccao->fresh('user'));
+            $confeccao->update($dados);
+
+            // Se tiver usuário associado, sincroniza nome e email de forma segura
+            if ($confeccao->user && $confeccao->user->role === 'confeccao') {
+                try {
+                    $userUpdates = [];
+                    if (!empty($dados['nome'])) {
+                        $userUpdates['name'] = $dados['nome'];
+                    }
+                    if (!empty($dados['email']) && $dados['email'] !== $confeccao->user->email) {
+                        $emailEmUso = User::where('email', $dados['email'])
+                            ->where('id', '!=', $confeccao->user->id)
+                            ->exists();
+                        if (!$emailEmUso) {
+                            $userUpdates['email'] = $dados['email'];
+                        } else {
+                            Log::warning("ConfeccaoController: email {$dados['email']} já está em uso por outro usuário. Sincronização de email ignorada.");
+                        }
+                    }
+                    if (!empty($userUpdates)) {
+                        $confeccao->user->update($userUpdates);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("ConfeccaoController: Falha ao sincronizar dados do usuário: " . $e->getMessage());
+                }
+            }
+
+            return response()->json($confeccao->fresh('user'));
+        } catch (\Throwable $e) {
+            Log::error("ConfeccaoController@update erro fatal: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Erro ao atualizar dados da confecção: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function destroy(Confeccao $confeccao)
