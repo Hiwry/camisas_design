@@ -79,3 +79,4 @@ export async function otimizarImagemUpload(
     img.src = url
   })
 }
+

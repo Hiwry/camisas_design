@@ -871,7 +871,14 @@ export default function PedidosPage() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           {(() => {
-                            const imgCapa = p.capa_url || p.arte_ativa?.preview_url || p.arte_ativa?.imagem_url || p.arteAtiva?.preview_url || p.arteAtiva?.imagem_url
+                            const primeiraRef = Array.isArray(p.referencias)
+                              ? p.referencias.find((r: any) => {
+                                  const u = typeof r === 'string' ? r : r?.url
+                                  return u && /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(u)
+                                })
+                              : null
+                            const refUrl = typeof primeiraRef === 'string' ? primeiraRef : (primeiraRef as any)?.url
+                            const imgCapa = p.capa_url || p.arte_ativa?.preview_url || p.arte_ativa?.imagem_url || p.arteAtiva?.preview_url || p.arteAtiva?.imagem_url || refUrl
                             return imgCapa ? (
                               <img
                                 src={resolveMediaUrl(imgCapa)}

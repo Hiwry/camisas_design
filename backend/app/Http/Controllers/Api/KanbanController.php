@@ -36,9 +36,22 @@ class KanbanController extends Controller
                 $arteAtiva = $p->arteAtiva;
                 $ultimaAp  = $p->ultimaAprovacao;
 
+                // Identifica capa do pedido ou primeira referência com imagem como fallback
+                $capaUrl = $p->capa_url;
+                if (!$capaUrl && is_array($p->referencias)) {
+                    foreach ($p->referencias as $ref) {
+                        $u = is_array($ref) ? ($ref['url'] ?? null) : (is_string($ref) ? $ref : null);
+                        if ($u && preg_match('/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i', $u)) {
+                            $capaUrl = $u;
+                            break;
+                        }
+                    }
+                }
+
                 return [
                     'id'              => $p->id,
                     'titulo'          => $p->titulo,
+                    'capa_url'        => $capaUrl,
                     'tipo_impressao'  => $p->tipo_impressao,
                     'status'          => $p->status,
                     'prazo'           => $p->prazo?->toDateString(),

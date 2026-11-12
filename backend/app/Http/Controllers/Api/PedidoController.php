@@ -154,6 +154,17 @@ class PedidoController extends Controller
                 'nome_cliente', 'email_cliente', 'whatsapp_cliente',
             ]);
 
+            // Se nenhuma capa explícita foi enviada mas há referências com imagem, usa a primeira como capa
+            if (!$capaUrl && !empty($refsData)) {
+                foreach ($refsData as $ref) {
+                    $u = is_array($ref) ? ($ref['url'] ?? null) : (is_string($ref) ? $ref : null);
+                    if ($u && preg_match('/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i', $u)) {
+                        $capaUrl = $u;
+                        break;
+                    }
+                }
+            }
+
             // Se a coluna capa_url existir no banco, inclui
             if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'capa_url')) {
                 $pedidoData['capa_url'] = $capaUrl;

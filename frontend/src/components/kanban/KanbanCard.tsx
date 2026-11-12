@@ -90,7 +90,14 @@ export default function KanbanCard({ card, overlay, onMover }: Props) {
   // Preview da Arte ou Mockup
   const tipoArte = card.arte_ativa?.arquivo_tipo?.toLowerCase() ?? ''
   const isImageFile = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(tipoArte) || tipoArte.startsWith('image/')
-  const previewRaw = card.capa_url || card.arte_ativa?.preview_url || (isImageFile ? card.arte_ativa?.arquivo_url : null)
+  const primeiraRef = Array.isArray(card.referencias)
+    ? card.referencias.find((r: any) => {
+        const u = typeof r === 'string' ? r : r?.url
+        return u && /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(u)
+      })
+    : null
+  const refUrl = typeof primeiraRef === 'string' ? primeiraRef : (primeiraRef as any)?.url
+  const previewRaw = card.capa_url || card.arte_ativa?.preview_url || (isImageFile ? card.arte_ativa?.arquivo_url : null) || refUrl
   const previewUrl = previewRaw ? resolveMediaUrl(previewRaw) : null
   const hasPreview = Boolean(previewUrl && !imgError)
   const isPdf = !hasPreview && tipoArte === 'pdf'
