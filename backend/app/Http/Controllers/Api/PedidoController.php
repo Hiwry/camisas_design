@@ -47,151 +47,156 @@ class PedidoController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        // Confecção usa automaticamente a própria confecção; admin precisa informar
-        $confeccaoId = $user->isAdmin()
-            ? $request->confeccao_id
-            : $user->confeccao?->id;
+            // Confecção usa automaticamente a própria confecção; admin precisa informar
+            $confeccaoId = $user->isAdmin()
+                ? $request->confeccao_id
+                : $user->confeccao?->id;
 
-        if (!$confeccaoId) {
-            return response()->json(['message' => 'Confecção não encontrada para este usuário.'], 422);
-        }
+            if (!$confeccaoId) {
+                return response()->json(['message' => 'Confecção não encontrada para este usuário.'], 422);
+            }
 
-        // Normaliza campos de cliente
-        if ($request->filled('nome_cliente') && !$request->filled('cliente_nome')) {
-            $request->merge(['cliente_nome' => $request->nome_cliente]);
-        }
-        if ($request->filled('cliente_nome') && !$request->filled('nome_cliente')) {
-            $request->merge(['nome_cliente' => $request->cliente_nome]);
-        }
-        if ($request->filled('whatsapp_cliente') && !$request->filled('cliente_whatsapp')) {
-            $request->merge(['cliente_whatsapp' => $request->whatsapp_cliente]);
-        }
-        if ($request->filled('cliente_whatsapp') && !$request->filled('whatsapp_cliente')) {
-            $request->merge(['whatsapp_cliente' => $request->cliente_whatsapp]);
-        }
-        if ($request->filled('email_cliente') && !$request->filled('cliente_email')) {
-            $request->merge(['cliente_email' => $request->email_cliente]);
-        }
-        if ($request->filled('cliente_email') && !$request->filled('email_cliente')) {
-            $request->merge(['email_cliente' => $request->cliente_email]);
-        }
+            // Normaliza campos de cliente
+            if ($request->filled('nome_cliente') && !$request->filled('cliente_nome')) {
+                $request->merge(['cliente_nome' => $request->nome_cliente]);
+            }
+            if ($request->filled('cliente_nome') && !$request->filled('nome_cliente')) {
+                $request->merge(['nome_cliente' => $request->cliente_nome]);
+            }
+            if ($request->filled('whatsapp_cliente') && !$request->filled('cliente_whatsapp')) {
+                $request->merge(['cliente_whatsapp' => $request->whatsapp_cliente]);
+            }
+            if ($request->filled('cliente_whatsapp') && !$request->filled('whatsapp_cliente')) {
+                $request->merge(['whatsapp_cliente' => $request->cliente_whatsapp]);
+            }
+            if ($request->filled('email_cliente') && !$request->filled('cliente_email')) {
+                $request->merge(['cliente_email' => $request->email_cliente]);
+            }
+            if ($request->filled('cliente_email') && !$request->filled('email_cliente')) {
+                $request->merge(['email_cliente' => $request->cliente_email]);
+            }
 
-        // Injeta no request para validação e uso posterior
-        $request->merge(['confeccao_id' => $confeccaoId]);
+            // Injeta no request para validação e uso posterior
+            $request->merge(['confeccao_id' => $confeccaoId]);
 
-        $request->validate([
-            'confeccao_id'     => 'required|exists:confeccoes,id',
-            'titulo'           => 'required|string|max:255',
-            'imagem_capa'      => 'nullable|file|mimes:jpeg,jpg,png,webp,svg,gif|max:20480',
-            'tipo_impressao'   => 'required|in:sublimacao,bordado,serigrafia',
-            'observacoes'      => 'nullable|string',
-            'referencias'      => 'nullable',
-            'prazo'            => 'nullable|date',
-            'valor'            => 'nullable|numeric|min:0',
-            'cliente_nome'     => 'nullable|string|max:255',
-            'cliente_email'    => 'nullable|email',
-            'cliente_whatsapp' => 'nullable|string|max:50',
-            'nome_cliente'     => 'nullable|string|max:255',
-            'email_cliente'    => 'nullable|email',
-            'whatsapp_cliente' => 'nullable|string|max:50',
-        ]);
+            $request->validate([
+                'confeccao_id'     => 'required|exists:confeccoes,id',
+                'titulo'           => 'required|string|max:255',
+                'imagem_capa'      => 'nullable|file|mimes:jpeg,jpg,png,webp,svg,gif|max:20480',
+                'tipo_impressao'   => 'required|in:sublimacao,bordado,serigrafia',
+                'observacoes'      => 'nullable|string',
+                'referencias'      => 'nullable',
+                'prazo'            => 'nullable|date',
+                'valor'            => 'nullable|numeric|min:0',
+                'cliente_nome'     => 'nullable|string|max:255',
+                'cliente_email'    => 'nullable|email',
+                'cliente_whatsapp' => 'nullable|string|max:50',
+                'nome_cliente'     => 'nullable|string|max:255',
+                'email_cliente'    => 'nullable|email',
+                'whatsapp_cliente' => 'nullable|string|max:50',
+            ]);
 
-        $confeccao = Confeccao::findOrFail($confeccaoId);
+            $confeccao = Confeccao::findOrFail($confeccaoId);
 
-        $user = auth()->user();
-        $isArtePagaExtra = $request->filled('valor') && (float) $request->valor > 0;
-        $isAvulso = ($confeccao->plano === 'avulso') || ((int) $confeccao->limite_mensal === 0) || ((int) $confeccao->limite_mensal >= 999);
-        $isAdmin = $user && $user->isAdmin();
-        $bypassLimite = $isAdmin || $isArtePagaExtra || $isAvulso;
+            $user = auth()->user();
+            $isArtePagaExtra = $request->filled('valor') && (float) $request->valor > 0;
+            $isAvulso = ($confeccao->plano === 'avulso') || ((int) $confeccao->limite_mensal === 0) || ((int) $confeccao->limite_mensal >= 999);
+            $isAdmin = $user && $user->isAdmin();
+            $bypassLimite = $isAdmin || $isArtePagaExtra || $isAvulso;
 
-        if (!$bypassLimite && !$confeccao->podecriarPedido()) {
-            return response()->json([
-                'message' => 'Limite mensal de artes atingido para este plano. Adquira artes extras no Shop Avulso.',
-                'disponivel' => 0,
-            ], 422);
-        }
+            if (!$bypassLimite && !$confeccao->podecriarPedido()) {
+                return response()->json([
+                    'message' => 'Limite mensal de artes atingido para este plano. Adquira artes extras no Shop Avulso.',
+                    'disponivel' => 0,
+                ], 422);
+            }
 
-        // Processa imagem de capa caso enviada
-        $capaUrl = null;
-        if ($request->hasFile('imagem_capa')) {
-            try {
-                @mkdir(storage_path('app/public/pedidos/capas'), 0775, true);
-                $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
-                $path = $request->file('imagem_capa')->store("pedidos/capas", $disk);
-                $capaUrl = Storage::disk($disk)->url($path);
-            } catch (\Throwable $e) {
-                Log::warning("Falha ao salvar capa do pedido em {$disk}: " . $e->getMessage());
+            // Processa imagem de capa caso enviada
+            $capaUrl = null;
+            if ($request->hasFile('imagem_capa')) {
                 try {
+                    @mkdir(storage_path('app/public/pedidos/capas'), 0775, true);
                     $path = $request->file('imagem_capa')->store("pedidos/capas", 'public');
                     $capaUrl = Storage::disk('public')->url($path);
-                } catch (\Throwable $e2) {
-                    Log::error("Erro crítico ao salvar capa do pedido: " . $e2->getMessage());
-                }
-            }
-        }
-
-        // Processa arquivos de referências de forma rápida e segura
-        $refsData = [];
-        if ($request->hasFile('referencias')) {
-            @mkdir(storage_path('app/public/pedidos/referencias'), 0775, true);
-            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
-            foreach ($request->file('referencias') as $arquivo) {
-                try {
-                    $path = $arquivo->store("pedidos/referencias", $disk);
-                    $refsData[] = [
-                        'url'      => Storage::disk($disk)->url($path),
-                        'nome'     => $arquivo->getClientOriginalName(),
-                        'tipo'     => $arquivo->getClientOriginalExtension(),
-                        'tamanho'  => $arquivo->getSize(),
-                    ];
                 } catch (\Throwable $e) {
-                    Log::warning("Falha ao gravar arquivo de referência em {$disk}: " . $e->getMessage());
+                    Log::warning("Falha ao salvar capa do pedido: " . $e->getMessage());
                 }
             }
-        } elseif (is_array($request->referencias)) {
-            $refsData = $request->referencias;
-        }
 
-        $pedidoData = $request->only([
-            'confeccao_id', 'titulo', 'tipo_impressao', 'observacoes',
-            'prazo', 'valor',
-            'cliente_nome', 'cliente_email', 'cliente_whatsapp',
-            'nome_cliente', 'email_cliente', 'whatsapp_cliente',
-        ]);
-        $pedidoData['capa_url'] = $capaUrl;
-        $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
-
-        $pedido = Pedido::create($pedidoData);
-
-        // Se uma imagem de capa foi fornecida, cria automaticamente a Arte v1 ativa
-        if ($capaUrl) {
-            try {
-                \App\Models\Arte::create([
-                    'pedido_id'      => $pedido->id,
-                    'versao'         => 1,
-                    'arquivo_url'    => $capaUrl,
-                    'preview_url'    => $capaUrl,
-                    'preview_nome'   => 'Capa Inicial',
-                    'arquivo_nome'   => $request->file('imagem_capa')?->getClientOriginalName() ?? 'capa.png',
-                    'arquivo_tipo'   => $request->file('imagem_capa')?->getClientOriginalExtension() ?? 'png',
-                    'arquivo_tamanho'=> $request->file('imagem_capa')?->getSize() ?? 0,
-                    'notas'          => 'Imagem de capa anexada na abertura do pedido',
-                    'ativa'          => true,
-                    'enviada_em'     => now(),
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning("Falha ao registrar Arte v1 para a capa do pedido #{$pedido->id}: " . $e->getMessage());
+            // Processa arquivos de referências de forma rápida e segura
+            $refsData = [];
+            if ($request->hasFile('referencias')) {
+                @mkdir(storage_path('app/public/pedidos/referencias'), 0775, true);
+                foreach ($request->file('referencias') as $arquivo) {
+                    try {
+                        $path = $arquivo->store("pedidos/referencias", 'public');
+                        $refsData[] = [
+                            'url'      => Storage::disk('public')->url($path),
+                            'nome'     => $arquivo->getClientOriginalName(),
+                            'tipo'     => $arquivo->getClientOriginalExtension(),
+                            'tamanho'  => $arquivo->getSize(),
+                        ];
+                    } catch (\Throwable $e) {
+                        Log::warning("Falha ao gravar arquivo de referência em public: " . $e->getMessage());
+                    }
+                }
+            } elseif (is_array($request->referencias)) {
+                $refsData = $request->referencias;
             }
-        }
 
-        // Se for arte avulsa paga à parte (com valor > 0), não consome a cota do plano mensal
-        if (!$isArtePagaExtra) {
-            $confeccao->incrementarArteUsada();
-        }
+            $pedidoData = $request->only([
+                'confeccao_id', 'titulo', 'tipo_impressao', 'observacoes',
+                'prazo', 'valor',
+                'cliente_nome', 'cliente_email', 'cliente_whatsapp',
+                'nome_cliente', 'email_cliente', 'whatsapp_cliente',
+            ]);
 
-        return response()->json($pedido->load(['confeccao', 'arteAtiva']), 201);
+            // Se a coluna capa_url existir no banco, inclui
+            if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'capa_url')) {
+                $pedidoData['capa_url'] = $capaUrl;
+            }
+            $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
+
+            $pedido = Pedido::create($pedidoData);
+
+            // Se uma imagem de capa foi fornecida, cria automaticamente a Arte v1 ativa
+            if ($capaUrl) {
+                try {
+                    \App\Models\Arte::create([
+                        'pedido_id'      => $pedido->id,
+                        'versao'         => 1,
+                        'arquivo_url'    => $capaUrl,
+                        'preview_url'    => $capaUrl,
+                        'preview_nome'   => 'Capa Inicial',
+                        'arquivo_nome'   => $request->file('imagem_capa')?->getClientOriginalName() ?? 'capa.png',
+                        'arquivo_tipo'   => $request->file('imagem_capa')?->getClientOriginalExtension() ?? 'png',
+                        'arquivo_tamanho'=> $request->file('imagem_capa')?->getSize() ?? 0,
+                        'notas'          => 'Imagem de capa anexada na abertura do pedido',
+                        'ativa'          => true,
+                        'enviada_em'     => now(),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning("Falha ao registrar Arte v1 para a capa do pedido #{$pedido->id}: " . $e->getMessage());
+                }
+            }
+
+            // Se for arte avulsa paga à parte (com valor > 0), não consome a cota do plano mensal
+            if (!$isArtePagaExtra) {
+                $confeccao->incrementarArteUsada();
+            }
+
+            return response()->json($pedido->load(['confeccao', 'arteAtiva']), 201);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            throw $ve;
+        } catch (\Throwable $e) {
+            Log::error("Erro crítico ao criar pedido: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Erro ao criar pedido: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function update(Request $request, Pedido $pedido)

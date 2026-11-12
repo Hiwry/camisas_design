@@ -43,6 +43,7 @@ import {
 } from 'lucide-react'
 import { format, parseISO, isPast, isBefore, startOfToday, addDays, addHours } from 'date-fns'
 import clsx from 'clsx'
+import { otimizarImagemUpload } from '@/lib/imageOptimizer'
 
 // ── DESIGN SYSTEM TOKENS ──
 // Background: #0B0B0C
@@ -188,26 +189,35 @@ export default function PedidosPage() {
   useEffect(() => {
     if (!showNovoPedidoModal) return
 
-    function handleWindowPaste(e: ClipboardEvent) {
+    async function handleWindowPaste(e: ClipboardEvent) {
       const items = e.clipboardData?.items
       if (!items) return
 
-      const pasted: File[] = []
+      const rawPasted: File[] = []
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
           const blob = items[i].getAsFile()
           if (blob) {
             const ext = blob.type.split('/')[1] || 'png'
             const newFile = new File([blob], `print_${Date.now()}.${ext}`, { type: blob.type })
-            pasted.push(newFile)
+            rawPasted.push(newFile)
           }
         }
       }
 
-      if (pasted.length > 0) {
+      if (rawPasted.length > 0) {
         e.preventDefault()
-        setReferencias((prev) => [...prev, ...pasted])
-        toast.success(`${pasted.length} imagem(ns) colada(s) da área de transferência!`, { icon: '📋' })
+        const loadingToast = toast.loading('Otimizando imagem colada...')
+        try {
+          const otimizadas = await Promise.all(rawPasted.map((f) => otimizarImagemUpload(f)))
+          setReferencias((prev) => [...prev, ...otimizadas])
+          toast.dismiss(loadingToast)
+          toast.success(`${otimizadas.length} imagem(ns) colada(s) e otimizada(s)!`, { icon: '📋' })
+        } catch {
+          toast.dismiss(loadingToast)
+          setReferencias((prev) => [...prev, ...rawPasted])
+          toast.success(`${rawPasted.length} imagem(ns) colada(s)!`, { icon: '📋' })
+        }
       }
     }
 
@@ -383,16 +393,18 @@ export default function PedidosPage() {
     }
   }
 
-  function handleNovoPedidoSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleNovoPedidoSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     fd.set('prazo', prazoCalculado)
     if (expresso) fd.set('expresso', '1')
     if (valorPedido) fd.set('valor', valorPedido)
     if (capaArquivo) {
-      fd.set('imagem_capa', capaArquivo)
+      const capaOtimizada = await otimizarImagemUpload(capaArquivo)
+      fd.set('imagem_capa', capaOtimizada)
     }
-    referencias.forEach((file) => fd.append('referencias[]', file))
+    const refsOtimizadas = await Promise.all(referencias.map((f) => otimizarImagemUpload(f)))
+    refsOtimizadas.forEach((file) => fd.append('referencias[]', file))
     criarMutation.mutate(fd as unknown as Record<string, unknown>)
   }
 
@@ -404,12 +416,14 @@ export default function PedidosPage() {
     editarMutation.mutate({ id: pedidoParaEditar.id, data })
   }
 
-  function addReferencias(files: FileList | null) {
+  async function addReferencias(files: FileList | null) {
     if (!files) return
     const novos = Array.from(files).filter(
       (f) => !referencias.find((r) => r.name === f.name && r.size === f.size)
     )
-    setReferencias((prev) => [...prev, ...novos])
+    if (novos.length === 0) return
+    const otimizados = await Promise.all(novos.map((f) => otimizarImagemUpload(f)))
+    setReferencias((prev) => [...prev, ...otimizados])
   }
 
   function removeReferencia(index: number) {
@@ -1325,11 +1339,12 @@ export default function PedidosPage() {
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0]
                     if (file) {
-                      setCapaArquivo(file)
-                      setPreviewCapa(URL.createObjectURL(file))
+                      const otimizado = await otimizarImagemUpload(file)
+                      setCapaArquivo(otimizado)
+                      setPreviewCapa(URL.createObjectURL(otimizado))
                     }
                   }}
                 />
