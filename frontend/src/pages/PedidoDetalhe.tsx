@@ -426,6 +426,13 @@ export default function PedidoDetalhe() {
   // Arquivos da versão exibida
   const { listaPreviews, listaFontes, totalArquivosVersao } = useMemo(() => {
     if (!versaoExibida) {
+      if (pedido?.capa_url) {
+        return {
+          listaPreviews: [{ id: 'capa', url: resolveMediaUrl(pedido.capa_url), nome: 'Imagem de Capa' }],
+          listaFontes: [],
+          totalArquivosVersao: 1,
+        }
+      }
       return { listaPreviews: [], listaFontes: [], totalArquivosVersao: 0 }
     }
 

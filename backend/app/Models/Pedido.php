@@ -15,6 +15,7 @@ class Pedido extends Model
     protected $fillable = [
         'confeccao_id',
         'titulo',
+        'capa_url',
         'tipo_impressao',
         'status',
         'observacoes',

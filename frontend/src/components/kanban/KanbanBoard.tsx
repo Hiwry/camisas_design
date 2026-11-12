@@ -29,6 +29,7 @@ import { parseISO, isBefore, startOfToday, addDays } from 'date-fns'
 export interface KanbanPedido {
   id: number
   titulo: string
+  capa_url?: string | null
   tipo_impressao: string
   status: string
   prazo: string | null

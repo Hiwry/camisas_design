@@ -51,9 +51,7 @@ export const pedidoService = {
   buscar: (id: number) =>
     api.get(`/pedidos/${id}`).then((r) => r.data),
   criar: (data: FormData | Record<string, unknown>) =>
-    api.post('/pedidos', data, {
-      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
-    }).then((r) => r.data),
+    api.post('/pedidos', data).then((r) => r.data),
   atualizar: (id: number, data: Record<string, unknown>) =>
     api.put(`/pedidos/${id}`, data).then((r) => r.data),
   mudarStatus: (id: number, status: string) =>

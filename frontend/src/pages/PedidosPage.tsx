@@ -33,6 +33,7 @@ import {
   FileText,
   Clipboard,
   Zap,
+  Camera,
   Download,
   Check,
   User,
@@ -56,6 +57,7 @@ import clsx from 'clsx'
 export interface PedidoItem {
   id: number
   titulo: string
+  capa_url?: string | null
   confeccao_id: number
   confeccao?: { id: number; nome: string; plano: string }
   tipo_impressao: 'sublimacao' | 'bordado' | 'serigrafia' | string
@@ -136,6 +138,9 @@ export default function PedidosPage() {
   const [previewArte, setPreviewArte]                 = useState<{ url: string; titulo: string; versao?: number } | null>(null)
 
   // ── FORM NOVO PEDIDO ──
+  const [capaArquivo, setCapaArquivo]     = useState<File | null>(null)
+  const [previewCapa, setPreviewCapa]     = useState<string | null>(null)
+  const capaInputRef                      = useRef<HTMLInputElement>(null)
   const [referencias, setReferencias]     = useState<File[]>([])
   const [expresso, setExpresso]           = useState(false)
   const [confeccaoSel, setConfeccaoSel]   = useState<{ id: number; nome: string; plano: string } | null>(null)
@@ -326,6 +331,8 @@ export default function PedidosPage() {
       toast.success('Pedido criado com sucesso!')
       qc.invalidateQueries({ queryKey: ['pedidos'] })
       setShowNovoPedidoModal(false)
+      setCapaArquivo(null)
+      setPreviewCapa(null)
       setReferencias([])
       setExpresso(false)
       setConfeccaoSel(null)
@@ -382,6 +389,9 @@ export default function PedidosPage() {
     fd.set('prazo', prazoCalculado)
     if (expresso) fd.set('expresso', '1')
     if (valorPedido) fd.set('valor', valorPedido)
+    if (capaArquivo) {
+      fd.set('imagem_capa', capaArquivo)
+    }
     referencias.forEach((file) => fd.append('referencias[]', file))
     criarMutation.mutate(fd as unknown as Record<string, unknown>)
   }
@@ -845,20 +855,44 @@ export default function PedidosPage() {
                     >
                       {/* 1. PEDIDO */}
                       <td className="px-5 py-4">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-[#F5F5F6] group-hover:text-[#E7B32C] transition-colors">
-                              {p.titulo}
-                            </span>
-                            {p.valor && Number(p.valor) > 0 && (
-                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
-                                R$ {Number(p.valor).toFixed(2).replace('.', ',')}
+                        <div className="flex items-center gap-3">
+                          {(() => {
+                            const imgCapa = p.capa_url || p.arte_ativa?.preview_url || p.arte_ativa?.imagem_url || p.arteAtiva?.preview_url || p.arteAtiva?.imagem_url
+                            return imgCapa ? (
+                              <img
+                                src={resolveMediaUrl(imgCapa)}
+                                alt={p.titulo}
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-white/10 bg-[#1D1D1F] shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setPreviewArte({ url: resolveMediaUrl(imgCapa), titulo: p.titulo, versao: p.arte_ativa?.versao || p.arteAtiva?.versao })}
+                              />
+                            ) : (
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-[11px] flex-shrink-0 select-none shadow-inner"
+                                style={{
+                                  backgroundColor: '#1D1D1F',
+                                  color: '#909098',
+                                  border: '1px solid #303034',
+                                }}
+                              >
+                                #{p.id}
+                              </div>
+                            )
+                          })()}
+                          <div className="min-w-0 flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-[#F5F5F6] group-hover:text-[#E7B32C] transition-colors truncate">
+                                {p.titulo}
                               </span>
-                            )}
+                              {p.valor && Number(p.valor) > 0 && (
+                                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 flex-shrink-0">
+                                  R$ {Number(p.valor).toFixed(2).replace('.', ',')}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-[#909098] mt-0.5">
+                              Pedido #{p.id}
+                            </span>
                           </div>
-                          <span className="text-xs text-[#909098] mt-0.5">
-                            Pedido #{p.id}
-                          </span>
                         </div>
                       </td>
 
@@ -1211,6 +1245,8 @@ export default function PedidosPage() {
           title="Novo Pedido"
           onClose={() => {
             setShowNovoPedidoModal(false)
+            setCapaArquivo(null)
+            setPreviewCapa(null)
             setReferencias([])
             setExpresso(false)
             setConfeccaoSel(null)
@@ -1219,6 +1255,86 @@ export default function PedidosPage() {
           }}
         >
           <form onSubmit={handleNovoPedidoSubmit} className="space-y-4">
+            {/* Foto de Capa / Mockup do Pedido */}
+            <div>
+              <label className="block text-xs font-semibold text-[#F5F5F6] mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-[#E7B32C]" />
+                  Imagem de Capa / Mockup do Pedido <span className="text-[#909098] font-normal">(opcional)</span>
+                </span>
+                {previewCapa && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCapaArquivo(null)
+                      setPreviewCapa(null)
+                      if (capaInputRef.current) capaInputRef.current.value = ''
+                    }}
+                    className="text-[11px] text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Remover capa
+                  </button>
+                )}
+              </label>
+
+              <div
+                className="p-3 rounded-xl border flex items-center gap-3.5 transition-colors"
+                style={{ backgroundColor: '#1D1D1F', borderColor: previewCapa ? 'rgba(231,179,44,0.4)' : '#303034' }}
+              >
+                <div
+                  onClick={() => capaInputRef.current?.click()}
+                  className="w-16 h-16 rounded-xl border border-dashed flex items-center justify-center cursor-pointer overflow-hidden relative group flex-shrink-0"
+                  style={{
+                    backgroundColor: '#151516',
+                    borderColor: previewCapa ? '#E7B32C' : '#3E3E42',
+                  }}
+                  title="Clique para escolher a imagem de capa"
+                >
+                  {previewCapa ? (
+                    <>
+                      <img src={previewCapa} alt="Capa" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Camera className="w-4 h-4 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-zinc-500 group-hover:text-[#E7B32C] transition-colors">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => capaInputRef.current?.click()}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-md border transition-colors hover:bg-zinc-800 text-[#F5F5F6]"
+                      style={{ borderColor: '#3E3E42' }}
+                    >
+                      {previewCapa ? 'Trocar imagem de capa' : 'Selecionar imagem de capa'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#909098] mt-1 truncate">
+                    JPG, PNG ou WEBP · Aparece no card do Kanban e no link de aprovação
+                  </p>
+                </div>
+
+                <input
+                  ref={capaInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      setCapaArquivo(file)
+                      setPreviewCapa(URL.createObjectURL(file))
+                    }
+                  }}
+                />
+              </div>
+            </div>
             {/* Saldo de Artes (Para usuário Confecção) */}
             {!isAdmin() && user?.confeccao && (() => {
               const conf = user.confeccao
@@ -1589,6 +1705,8 @@ export default function PedidosPage() {
                 type="button"
                 onClick={() => {
                   setShowNovoPedidoModal(false)
+                  setCapaArquivo(null)
+                  setPreviewCapa(null)
                   setReferencias([])
                 }}
                 className="flex-1 px-4 py-2.5 rounded-lg text-xs font-semibold border transition-colors"
