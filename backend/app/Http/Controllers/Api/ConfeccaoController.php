@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ConfeccaoController extends Controller
@@ -54,6 +55,8 @@ class ConfeccaoController extends Controller
             'whatsapp'      => 'nullable|string|max:20',
             'email'         => 'nullable|email|max:255',
             'plano'         => 'required|in:avulso,basico,profissional,premium',
+            'logo_url'      => 'nullable|string|max:500',
+            'logo_arquivo'  => 'nullable|image|max:10240',
             'criar_usuario' => 'nullable',
             'password'      => 'nullable|string|min:8',
         ]);
@@ -79,6 +82,17 @@ class ConfeccaoController extends Controller
             $userId = $user->id;
         }
 
+        // Upload de logo se fornecido arquivo
+        $logoUrl = $request->input('logo_url');
+        if ($request->hasFile('logo_arquivo')) {
+            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+            $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
+            $logoUrl = Storage::disk($disk)->url($path);
+        }
+
+        $plano = $request->plano;
+        $limiteMensal = ($plano === 'avulso') ? 0 : (Confeccao::LIMITES_PLANO[$plano] ?? 10);
+
         try {
             $confeccao = Confeccao::create([
                 'user_id'       => $userId,
@@ -86,14 +100,15 @@ class ConfeccaoController extends Controller
                 'telefone'      => $request->telefone ?? $request->whatsapp,
                 'whatsapp'      => $request->whatsapp ?? $request->telefone,
                 'email'         => $request->email,
-                'plano'         => $request->plano,
-                'limite_mensal' => Confeccao::LIMITES_PLANO[$request->plano] ?? 0,
+                'logo_url'      => $logoUrl,
+                'plano'         => $plano,
+                'limite_mensal' => $limiteMensal,
                 'reset_em'      => now()->toDateString(),
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
             Log::warning("ConfeccaoController: Erro SQL ao cadastrar confecção. Aplicando fallback de compatibilidade: " . $e->getMessage());
 
-            // Fallback 1: Se o banco legado ainda tem user_id NOT NULL (migração pendente), cria um stub silencioso
+            // Se o banco legado ainda tiver restrição NOT NULL em user_id, cria um stub silencioso
             if (!$userId) {
                 $stubEmail = 'cliente_' . preg_replace('/\D/', '', $request->whatsapp ?? '') . '_' . Str::random(6) . '@camisetadesign.local';
                 $stubUser = User::create([
@@ -106,20 +121,15 @@ class ConfeccaoController extends Controller
                 $userId = $stubUser->id;
             }
 
-            // Fallback 2: Se o banco legado ainda tem o ENUM sem 'avulso', usa 'basico' no banco mas com limite 0
-            $planoDb = $request->plano;
-            if ($planoDb === 'avulso') {
-                $planoDb = 'basico';
-            }
-
             $confeccao = Confeccao::create([
                 'user_id'       => $userId,
                 'nome'          => $request->nome,
                 'telefone'      => $request->telefone ?? $request->whatsapp,
                 'whatsapp'      => $request->whatsapp ?? $request->telefone,
                 'email'         => $request->email,
-                'plano'         => $planoDb,
-                'limite_mensal' => ($request->plano === 'avulso') ? 0 : (Confeccao::LIMITES_PLANO[$request->plano] ?? 10),
+                'logo_url'      => $logoUrl,
+                'plano'         => $plano,
+                'limite_mensal' => $limiteMensal,
                 'reset_em'      => now()->toDateString(),
             ]);
         }
@@ -133,10 +143,13 @@ class ConfeccaoController extends Controller
         $user = auth()->user();
 
         $rules = [
-            'nome'     => 'sometimes|string|max:255',
-            'telefone' => 'nullable|string|max:20',
-            'whatsapp' => 'nullable|string|max:20',
-            'email'    => 'nullable|email|max:255',
+            'nome'         => 'sometimes|string|max:255',
+            'telefone'     => 'nullable|string|max:20',
+            'whatsapp'     => 'nullable|string|max:20',
+            'email'        => 'nullable|email|max:255',
+            'logo_url'     => 'nullable|string|max:500',
+            'logo_arquivo' => 'nullable|image|max:10240',
+            'remover_logo' => 'nullable|boolean',
         ];
 
         // Apenas admin tem permissão para alterar plano e status ativo
@@ -149,14 +162,27 @@ class ConfeccaoController extends Controller
         $request->validate($rules);
 
         $camposPermitidos = $user->isAdmin()
-            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'limite_mensal', 'ativo']
-            : ['nome', 'telefone', 'whatsapp', 'email'];
+            ? ['nome', 'telefone', 'whatsapp', 'email', 'plano', 'limite_mensal', 'ativo', 'logo_url']
+            : ['nome', 'telefone', 'whatsapp', 'email', 'logo_url'];
 
         $dados = $request->only($camposPermitidos);
 
-        // Se o plano for alterado mas o limite não for especificado, sincroniza com o padrão do plano
-        if (isset($dados['plano']) && !isset($dados['limite_mensal'])) {
-            $dados['limite_mensal'] = Confeccao::LIMITES_PLANO[$dados['plano']] ?? 0;
+        // Upload de logo
+        if ($request->hasFile('logo_arquivo')) {
+            $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+            $path = $request->file('logo_arquivo')->store('confeccoes/logos', $disk);
+            $dados['logo_url'] = Storage::disk($disk)->url($path);
+        } elseif ($request->boolean('remover_logo')) {
+            $dados['logo_url'] = null;
+        }
+
+        // Se o plano for alterado, sincroniza limite mensal se necessário
+        if (isset($dados['plano'])) {
+            if ($dados['plano'] === 'avulso') {
+                $dados['limite_mensal'] = 0;
+            } elseif (!isset($dados['limite_mensal'])) {
+                $dados['limite_mensal'] = Confeccao::LIMITES_PLANO[$dados['plano']] ?? 10;
+            }
         }
 
         $confeccao->update($dados);

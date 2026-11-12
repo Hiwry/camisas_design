@@ -91,6 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/confeccoes',              [ConfeccaoController::class, 'index']);
     Route::get('/confeccoes/{confeccao}',  [ConfeccaoController::class, 'show']);
     Route::put('/confeccoes/{confeccao}',  [ConfeccaoController::class, 'update']);
+    Route::post('/confeccoes/{confeccao}', [ConfeccaoController::class, 'update']);
 
     // Pedidos
     Route::get('/pedidos',               [PedidoController::class, 'index']);

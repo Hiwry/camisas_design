@@ -89,12 +89,20 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
         </div>
 
         <div className="flex items-center gap-2">
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{ background: '#E7B32C', color: '#0B0B0C' }}
-          >
-            {user?.name?.[0]?.toUpperCase()}
-          </div>
+          {conf?.logo_url ? (
+            <img
+              src={conf.logo_url}
+              alt={user?.name || 'Avatar'}
+              className="w-7 h-7 rounded-full object-cover border border-white/10"
+            />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+              style={{ background: '#E7B32C', color: '#0B0B0C' }}
+            >
+              {user?.name?.[0]?.toUpperCase()}
+            </div>
+          )}
         </div>
       </header>
 
@@ -270,12 +278,20 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
                 className="flex items-center gap-3 px-3 py-2 rounded-lg mb-1"
                 style={{ background: '#1A1A1D' }}
               >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                  style={{ background: '#E7B32C', color: '#0B0B0C' }}
-                >
-                  {user?.name?.[0]?.toUpperCase()}
-                </div>
+                {conf?.logo_url ? (
+                  <img
+                    src={conf.logo_url}
+                    alt={user?.name || 'Avatar'}
+                    className="w-8 h-8 rounded-full object-cover border border-white/10 flex-shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{ background: '#E7B32C', color: '#0B0B0C' }}
+                  >
+                    {user?.name?.[0]?.toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate leading-tight">{user?.name}</p>
                   <p className="text-xs text-zinc-500 capitalize leading-tight mt-0.5">
@@ -293,13 +309,22 @@ export default function Layout({ children }: { children?: React.ReactNode } = {}
             </>
           ) : (
             <div className="flex flex-col items-center gap-2 py-1">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: '#E7B32C', color: '#0B0B0C' }}
-                title={`${user?.name} (${user?.role === 'admin' ? 'Admin' : 'Confecção'})`}
-              >
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
+              {conf?.logo_url ? (
+                <img
+                  src={conf.logo_url}
+                  alt={user?.name || 'Avatar'}
+                  className="w-8 h-8 rounded-full object-cover border border-white/10"
+                  title={`${user?.name} (${user?.role === 'admin' ? 'Admin' : 'Confecção'})`}
+                />
+              ) : (
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                  style={{ background: '#E7B32C', color: '#0B0B0C' }}
+                  title={`${user?.name} (${user?.role === 'admin' ? 'Admin' : 'Confecção'})`}
+                >
+                  {user?.name?.[0]?.toUpperCase()}
+                </div>
+              )}
               <button
                 onClick={handleLogout}
                 className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors"

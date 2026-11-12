@@ -26,6 +26,9 @@ import {
   Phone,
   Calendar,
   Layers,
+  Camera,
+  UploadCloud,
+  ImageIcon,
 } from 'lucide-react'
 
 // Paleta de Referência:
@@ -45,6 +48,7 @@ export interface ConfeccaoItem {
   email?: string | null
   telefone?: string | null
   whatsapp?: string | null
+  logo_url?: string | null
   plano: 'avulso' | 'basico' | 'profissional' | 'premium' | string
   limite_mensal: number
   artes_usadas_mes: number
@@ -88,12 +92,41 @@ export default function ConfeccoesPage() {
   // Modais
   const [showCriarModal, setShowCriarModal] = useState(false)
   const [criarLogin, setCriarLogin] = useState(false)
+  const [planoCriar, setPlanoCriar] = useState<string>('avulso')
+
+  // Logo / Foto de perfil - Criar
+  const [logoPreviewCriar, setLogoPreviewCriar] = useState<string | null>(null)
+  const [logoFileCriar, setLogoFileCriar] = useState<File | null>(null)
+  const fileInputRefCriar = useRef<HTMLInputElement | null>(null)
 
   const [confeccaoDetalhes, setConfeccaoDetalhes] = useState<ConfeccaoItem | null>(null)
   const [confeccaoEditar, setConfeccaoEditar] = useState<ConfeccaoItem | null>(null)
   const [confeccaoAlterarPlano, setConfeccaoAlterarPlano] = useState<ConfeccaoItem | null>(null)
   const [confeccaoAjustarCreditos, setConfeccaoAjustarCreditos] = useState<ConfeccaoItem | null>(null)
   const [confeccaoExcluir, setConfeccaoExcluir] = useState<ConfeccaoItem | null>(null)
+
+  // Logo / Foto de perfil - Editar
+  const [logoPreviewEditar, setLogoPreviewEditar] = useState<string | null>(null)
+  const [logoFileEditar, setLogoFileEditar] = useState<File | null>(null)
+  const [removerLogoEditar, setRemoverLogoEditar] = useState(false)
+  const [planoEditar, setPlanoEditar] = useState<string>('profissional')
+  const fileInputRefEditar = useRef<HTMLInputElement | null>(null)
+
+  function abrirCriarModal() {
+    setLogoPreviewCriar(null)
+    setLogoFileCriar(null)
+    setCriarLogin(false)
+    setPlanoCriar('avulso')
+    setShowCriarModal(true)
+  }
+
+  function abrirEditarModal(conf: ConfeccaoItem) {
+    setConfeccaoEditar(conf)
+    setLogoPreviewEditar(conf.logo_url || null)
+    setLogoFileEditar(null)
+    setRemoverLogoEditar(false)
+    setPlanoEditar(conf.plano || 'profissional')
+  }
 
   // Formulário de Créditos IA
   const [ajusteQtd, setAjusteQtd] = useState<number>(5)
@@ -207,7 +240,7 @@ export default function ConfeccoesPage() {
 
   // Editar cadastro
   const editarMutation = useMutation({
-    mutationFn: (payload: { id: number; data: Record<string, any> }) =>
+    mutationFn: (payload: { id: number; data: FormData | Record<string, any> }) =>
       confeccaoService.atualizar(payload.id, payload.data),
     onSuccess: () => {
       toast.success('Dados da confecção atualizados!')
@@ -292,18 +325,27 @@ export default function ConfeccoesPage() {
   // Handler do Form de Cadastro
   function handleCriarSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const payload = Object.fromEntries(formData)
-    criarMutation.mutate(payload)
+    const form = e.currentTarget
+    const formData = new FormData(form)
+    if (logoFileCriar) {
+      formData.set('logo_arquivo', logoFileCriar)
+    }
+    criarMutation.mutate(formData)
   }
 
   // Handler do Form de Edição
   function handleEditarSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!confeccaoEditar) return
-    const formData = new FormData(e.currentTarget)
-    const payload = Object.fromEntries(formData)
-    editarMutation.mutate({ id: confeccaoEditar.id, data: payload })
+    const form = e.currentTarget
+    const formData = new FormData(form)
+    if (logoFileEditar) {
+      formData.set('logo_arquivo', logoFileEditar)
+    }
+    if (removerLogoEditar) {
+      formData.set('remover_logo', '1')
+    }
+    editarMutation.mutate({ id: confeccaoEditar.id, data: formData })
   }
 
   return (
@@ -334,7 +376,7 @@ export default function ConfeccoesPage() {
         </div>
 
         <button
-          onClick={() => setShowCriarModal(true)}
+          onClick={abrirCriarModal}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-150 shadow-sm active:scale-[0.98] select-none"
           style={{
             backgroundColor: '#E7B32C',
@@ -642,16 +684,24 @@ export default function ConfeccoesPage() {
                       {/* Coluna 1: CONFECÇÃO */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div
-                            className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 select-none shadow-inner"
-                            style={{
-                              backgroundColor: '#241C10',
-                              color: '#E7B32C',
-                              border: '1px solid rgba(231,179,44,0.25)',
-                            }}
-                          >
-                            {initials}
-                          </div>
+                          {c.logo_url ? (
+                            <img
+                              src={c.logo_url}
+                              alt={c.nome}
+                              className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-white/10 bg-[#151516] shadow-sm"
+                            />
+                          ) : (
+                            <div
+                              className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 select-none shadow-inner"
+                              style={{
+                                backgroundColor: '#241C10',
+                                color: '#E7B32C',
+                                border: '1px solid rgba(231,179,44,0.25)',
+                              }}
+                            >
+                              {initials}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <span className="font-semibold text-sm text-[#F5F5F6] block truncate">
                               {c.nome}
@@ -882,7 +932,7 @@ export default function ConfeccoesPage() {
           {/* 2. Editar cadastro */}
           <button
             onClick={() => {
-              setConfeccaoEditar(menuAnchor.confeccao)
+              abrirEditarModal(menuAnchor.confeccao)
               setMenuAnchor(null)
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#F5F5F6] hover:bg-[#1D1D1F] transition-colors"
@@ -981,6 +1031,83 @@ export default function ConfeccoesPage() {
       {showCriarModal && (
         <ModalContainer title="Cadastrar Nova Confecção" onClose={() => setShowCriarModal(false)}>
           <form onSubmit={handleCriarSubmit} className="space-y-4">
+            {/* Foto / Logotipo de Perfil */}
+            <div>
+              <label className="text-xs font-semibold text-[#F5F5F6] block mb-1.5">
+                Foto de Perfil / Logotipo da Confecção
+              </label>
+              <div
+                className="p-3 rounded-xl border flex items-center gap-3.5"
+                style={{ backgroundColor: '#1D1D1F', borderColor: '#303034' }}
+              >
+                <div
+                  onClick={() => fileInputRefCriar.current?.click()}
+                  className="w-14 h-14 rounded-xl border border-dashed flex items-center justify-center cursor-pointer overflow-hidden relative group flex-shrink-0"
+                  style={{
+                    backgroundColor: '#151516',
+                    borderColor: logoPreviewCriar ? '#E7B32C' : '#3E3E42',
+                  }}
+                  title="Clique para escolher uma imagem"
+                >
+                  {logoPreviewCriar ? (
+                    <>
+                      <img src={logoPreviewCriar} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Camera className="w-4 h-4 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-zinc-500 group-hover:text-[#E7B32C] transition-colors">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRefCriar.current?.click()}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors hover:bg-zinc-800 text-[#F5F5F6]"
+                      style={{ borderColor: '#3E3E42' }}
+                    >
+                      {logoPreviewCriar ? 'Trocar foto' : 'Selecionar foto/logo'}
+                    </button>
+                    {logoPreviewCriar && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogoPreviewCriar(null)
+                          setLogoFileCriar(null)
+                          if (fileInputRefCriar.current) fileInputRefCriar.current.value = ''
+                        }}
+                        className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-md transition-colors"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#909098] mt-1 truncate">
+                    JPG, PNG ou WEBP para usar como avatar no portal e na lista
+                  </p>
+                </div>
+
+                <input
+                  ref={fileInputRefCriar}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      setLogoFileCriar(file)
+                      setLogoPreviewCriar(URL.createObjectURL(file))
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-[#F5F5F6] block mb-1">
                 Nome da Confecção ou Empresa *
@@ -1032,17 +1159,18 @@ export default function ConfeccoesPage() {
               </label>
               <select
                 name="plano"
-                defaultValue="profissional"
+                value={planoCriar}
+                onChange={(e) => setPlanoCriar(e.target.value)}
                 required
                 className="w-full text-xs rounded-lg px-3 py-2.5 outline-none transition-colors cursor-pointer"
                 style={{ backgroundColor: '#1D1D1F', border: '1px solid #303034', color: '#F5F5F6' }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = '#E7B32C')}
                 onBlur={(e) => (e.currentTarget.style.borderColor = '#303034')}
               >
-                <option value="profissional">PRO — 20 artes/mês · Entrega 24h</option>
-                <option value="basico">START — 10 artes/mês · Entrega 48h</option>
-                <option value="premium">VIP — 35 artes/mês · Entrega 12h</option>
                 <option value="avulso">AVULSO — Demanda pontual (Sem mensalidade)</option>
+                <option value="basico">START — 10 artes/mês · Entrega 48h</option>
+                <option value="profissional">PRO — 20 artes/mês · Entrega 24h</option>
+                <option value="premium">VIP — 35 artes/mês · Entrega 12h</option>
               </select>
             </div>
 
@@ -1147,12 +1275,20 @@ export default function ConfeccoesPage() {
               className="p-4 rounded-xl border flex items-center gap-3.5"
               style={{ backgroundColor: '#1D1D1F', borderColor: '#303034' }}
             >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-inner"
-                style={{ backgroundColor: '#241C10', color: '#E7B32C', border: '1px solid rgba(231,179,44,0.3)' }}
-              >
-                {getInitials(confeccaoDetalhes.nome)}
-              </div>
+              {confeccaoDetalhes.logo_url ? (
+                <img
+                  src={confeccaoDetalhes.logo_url}
+                  alt={confeccaoDetalhes.nome}
+                  className="w-12 h-12 rounded-xl object-cover border border-white/10 bg-[#151516] shadow-sm flex-shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-inner flex-shrink-0"
+                  style={{ backgroundColor: '#241C10', color: '#E7B32C', border: '1px solid rgba(231,179,44,0.3)' }}
+                >
+                  {getInitials(confeccaoDetalhes.nome)}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <h4 className="text-sm font-bold text-[#F5F5F6] truncate">{confeccaoDetalhes.nome}</h4>
                 <p className="text-xs text-[#909098] truncate">{confeccaoDetalhes.email || 'Sem e-mail cadastrado'}</p>
@@ -1260,7 +1396,7 @@ export default function ConfeccoesPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setConfeccaoEditar(confeccaoDetalhes)
+                  abrirEditarModal(confeccaoDetalhes)
                   setConfeccaoDetalhes(null)
                 }}
                 className="flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all"
@@ -1277,6 +1413,85 @@ export default function ConfeccoesPage() {
       {confeccaoEditar && (
         <ModalContainer title={`Editar — ${confeccaoEditar.nome}`} onClose={() => setConfeccaoEditar(null)}>
           <form onSubmit={handleEditarSubmit} className="space-y-4">
+            {/* Foto / Logotipo de Perfil */}
+            <div>
+              <label className="text-xs font-semibold text-[#F5F5F6] block mb-1.5">
+                Foto de Perfil / Logotipo da Confecção
+              </label>
+              <div
+                className="p-3 rounded-xl border flex items-center gap-3.5"
+                style={{ backgroundColor: '#1D1D1F', borderColor: '#303034' }}
+              >
+                <div
+                  onClick={() => fileInputRefEditar.current?.click()}
+                  className="w-14 h-14 rounded-xl border border-dashed flex items-center justify-center cursor-pointer overflow-hidden relative group flex-shrink-0"
+                  style={{
+                    backgroundColor: '#151516',
+                    borderColor: logoPreviewEditar ? '#E7B32C' : '#3E3E42',
+                  }}
+                  title="Clique para escolher uma imagem"
+                >
+                  {logoPreviewEditar ? (
+                    <>
+                      <img src={logoPreviewEditar} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Camera className="w-4 h-4 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-zinc-500 group-hover:text-[#E7B32C] transition-colors">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRefEditar.current?.click()}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors hover:bg-zinc-800 text-[#F5F5F6]"
+                      style={{ borderColor: '#3E3E42' }}
+                    >
+                      {logoPreviewEditar ? 'Trocar foto' : 'Selecionar foto/logo'}
+                    </button>
+                    {logoPreviewEditar && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogoPreviewEditar(null)
+                          setLogoFileEditar(null)
+                          setRemoverLogoEditar(true)
+                          if (fileInputRefEditar.current) fileInputRefEditar.current.value = ''
+                        }}
+                        className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-md transition-colors"
+                      >
+                        Remover foto
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#909098] mt-1 truncate">
+                    JPG, PNG ou WEBP para usar como foto de perfil/avatar
+                  </p>
+                </div>
+
+                <input
+                  ref={fileInputRefEditar}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      setLogoFileEditar(file)
+                      setLogoPreviewEditar(URL.createObjectURL(file))
+                      setRemoverLogoEditar(false)
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-[#F5F5F6] block mb-1">
                 Nome da Confecção *
@@ -1290,6 +1505,26 @@ export default function ConfeccoesPage() {
                 onFocus={(e) => (e.currentTarget.style.borderColor = '#E7B32C')}
                 onBlur={(e) => (e.currentTarget.style.borderColor = '#303034')}
               />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[#F5F5F6] block mb-1">
+                Plano de Assinatura
+              </label>
+              <select
+                name="plano"
+                value={planoEditar}
+                onChange={(e) => setPlanoEditar(e.target.value)}
+                className="w-full text-xs rounded-lg px-3 py-2.5 outline-none transition-colors cursor-pointer"
+                style={{ backgroundColor: '#1D1D1F', border: '1px solid #303034', color: '#F5F5F6' }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = '#E7B32C')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = '#303034')}
+              >
+                <option value="avulso">AVULSO — Demanda pontual (Sem mensalidade)</option>
+                <option value="basico">START — 10 artes/mês · Entrega 48h</option>
+                <option value="profissional">PRO — 20 artes/mês · Entrega 24h</option>
+                <option value="premium">VIP — 35 artes/mês · Entrega 12h</option>
+              </select>
             </div>
 
             <div>

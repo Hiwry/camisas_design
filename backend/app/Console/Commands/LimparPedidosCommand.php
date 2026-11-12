@@ -69,3 +69,4 @@ class LimparPedidosCommand extends Command
         return Command::SUCCESS;
     }
 }
+

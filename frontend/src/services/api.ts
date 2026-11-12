@@ -98,10 +98,18 @@ export const confeccaoService = {
     api.get('/confeccoes', { params }).then((r) => r.data),
   buscar: (id: number) =>
     api.get(`/confeccoes/${id}`).then((r) => r.data),
-  criar: (data: Record<string, unknown>) =>
-    api.post('/confeccoes', data).then((r) => r.data),
-  atualizar: (id: number, data: Record<string, unknown>) =>
-    api.put(`/confeccoes/${id}`, data).then((r) => r.data),
+  criar: (data: FormData | Record<string, unknown>) => {
+    const isFormData = data instanceof FormData
+    return api.post('/confeccoes', data, isFormData ? {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    } : undefined).then((r) => r.data)
+  },
+  atualizar: (id: number, data: FormData | Record<string, unknown>) => {
+    const isFormData = data instanceof FormData
+    return api.post(`/confeccoes/${id}`, data, isFormData ? {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    } : undefined).then((r) => r.data)
+  },
   excluir: (id: number) =>
     api.delete(`/confeccoes/${id}`).then((r) => r.data),
 }

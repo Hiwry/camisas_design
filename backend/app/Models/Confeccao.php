@@ -17,6 +17,7 @@ class Confeccao extends Model
         'telefone',
         'whatsapp',
         'email',
+        'logo_url',
         'plano',
         'limite_mensal',
         'artes_usadas_mes',
@@ -136,6 +137,10 @@ class Confeccao extends Model
     public function setPlanoAttribute(string $plano): void
     {
         $this->attributes['plano'] = $plano;
-        $this->attributes['limite_mensal'] = self::PLANOS[$plano]['limite'] ?? 10;
+        if ($plano === 'avulso') {
+            $this->attributes['limite_mensal'] = 0;
+        } elseif (!array_key_exists('limite_mensal', $this->attributes)) {
+            $this->attributes['limite_mensal'] = self::PLANOS[$plano]['limite'] ?? 10;
+        }
     }
 }
