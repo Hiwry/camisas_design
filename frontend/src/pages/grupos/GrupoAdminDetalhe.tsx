@@ -634,7 +634,7 @@ export default function GrupoAdminDetalhe() {
         <GradeProducao
           dados={dadosProducao}
           onExportarCsv={() => {
-            window.open(grupoService.urlExportarCsv(grupoId), '_blank')
+            grupoService.baixarCsv(grupoId, grupo.nome)
           }}
           onExportarPdf={() => {
             grupoService.baixarPdf(grupoId, grupo.nome)

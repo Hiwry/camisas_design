@@ -37,12 +37,21 @@ class RastreioController extends Controller
         $variants = $this->gerarVariacoesNumero($digits);
 
         // 1. Tenta encontrar Confecção cadastrada por telefone ou WhatsApp
+        $buscaNorm = $this->normalizarNumero($digits);
         $confeccao = Confeccao::where(function ($q) use ($variants) {
             foreach ($variants as $v) {
                 $q->orWhere('whatsapp', 'like', "%{$v}%")
                   ->orWhere('telefone', 'like', "%{$v}%");
             }
-        })->first();
+        })->get()->first(function (Confeccao $c) use ($buscaNorm) {
+            // Comparação exata do número normalizado (evita casar só pelos últimos dígitos)
+            foreach ([$c->whatsapp, $c->telefone] as $tel) {
+                if ($tel && $this->normalizarNumero(preg_replace('/\D/', '', $tel)) === $buscaNorm) {
+                    return true;
+                }
+            }
+            return false;
+        });
 
         $pedidos = collect();
         $clienteInfo = null;
@@ -164,6 +173,18 @@ class RastreioController extends Controller
         ]);
     }
 
+    /** Remove DDI 55 e o 9º dígito para comparar números BR de forma exata */
+    private function normalizarNumero(string $digits): string
+    {
+        if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+            $digits = substr($digits, 2);
+        }
+        if (strlen($digits) === 11 && $digits[2] === '9') {
+            $digits = substr($digits, 0, 2) . substr($digits, 3);
+        }
+        return $digits;
+    }
+
     /**
      * Gera lista de variações para cobrir formatos comuns de números BR
      */
@@ -215,7 +236,7 @@ class RastreioController extends Controller
         $request->validate([
             'telefone'   => 'required|string|min:8|max:30',
             'arquivos'   => 'required|array|min:1',
-            'arquivos.*' => 'file|max:30720', // até 30MB cada arquivo
+            'arquivos.*' => 'file|mimes:jpg,jpeg,png,webp,gif,pdf|max:30720', // até 30MB cada arquivo
         ]);
 
         $pedido = Pedido::with('confeccao')->find($id);
@@ -238,7 +259,7 @@ class RastreioController extends Controller
 
         foreach ($telefonesPedido as $tel) {
             $c = preg_replace('/\D/', '', $tel);
-            if (in_array($c, $variants)) {
+            if ($c !== '' && $this->normalizarNumero($c) === $this->normalizarNumero($digits)) {
                 $pertence = true;
                 break;
             }
@@ -260,8 +281,8 @@ class RastreioController extends Controller
 
             $refsAtuais[] = [
                 'url'     => $url,
-                'nome'    => $arquivo->getClientOriginalName(),
-                'tipo'    => strtolower($arquivo->getClientOriginalExtension()),
+                'nome'    => mb_substr(basename($arquivo->getClientOriginalName()), 0, 120),
+                'tipo'    => strtolower((string) $arquivo->guessExtension()),
                 'tamanho' => $arquivo->getSize(),
             ];
         }

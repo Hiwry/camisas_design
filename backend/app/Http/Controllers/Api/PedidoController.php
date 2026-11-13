@@ -102,7 +102,7 @@ class PedidoController extends Controller
             $confeccao = Confeccao::findOrFail($confeccaoId);
 
             $user = auth()->user();
-            $isArtePagaExtra = $request->filled('valor') && (float) $request->valor > 0;
+            $isArtePagaExtra = $user && $user->isAdmin() && $request->filled('valor') && (float) $request->valor > 0;
             $isAvulso = ($confeccao->plano === 'avulso') || ((int) $confeccao->limite_mensal === 0) || ((int) $confeccao->limite_mensal >= 999);
             $isAdmin = $user && $user->isAdmin();
             $bypassLimite = $isAdmin || $isArtePagaExtra || $isAvulso;
@@ -144,12 +144,23 @@ class PedidoController extends Controller
                     }
                 }
             } elseif (is_array($request->referencias)) {
-                $refsData = $request->referencias;
+                // Aceita apenas URLs http(s)/caminhos locais e campos conhecidos (evita javascript:, SSRF e lixo)
+                foreach ($request->referencias as $ref) {
+                    $u = is_array($ref) ? ($ref['url'] ?? null) : (is_string($ref) ? $ref : null);
+                    if (is_string($u) && (preg_match('#^https?://#i', $u) || str_starts_with($u, '/storage/'))) {
+                        $refsData[] = [
+                            'url'     => mb_substr($u, 0, 500),
+                            'nome'    => is_array($ref) ? mb_substr((string) ($ref['nome'] ?? ''), 0, 150) : '',
+                            'tipo'    => is_array($ref) ? mb_substr((string) ($ref['tipo'] ?? ''), 0, 20) : '',
+                            'tamanho' => is_array($ref) ? (int) ($ref['tamanho'] ?? 0) : 0,
+                        ];
+                    }
+                }
             }
 
             $pedidoData = $request->only([
                 'confeccao_id', 'titulo', 'tipo_impressao', 'observacoes',
-                'prazo', 'valor',
+                'prazo',
                 'cliente_nome', 'cliente_email', 'cliente_whatsapp',
                 'nome_cliente', 'email_cliente', 'whatsapp_cliente',
             ]);
@@ -168,6 +179,9 @@ class PedidoController extends Controller
             // Se a coluna capa_url existir no banco, inclui
             if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'capa_url')) {
                 $pedidoData['capa_url'] = $capaUrl;
+            }
+            if ($user->isAdmin() && $request->filled('valor')) {
+                $pedidoData['valor'] = $request->valor;
             }
             $pedidoData['referencias'] = !empty($refsData) ? $refsData : null;
 
@@ -205,7 +219,7 @@ class PedidoController extends Controller
         } catch (\Throwable $e) {
             Log::error("Erro crítico ao criar pedido: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
-                'message' => 'Erro ao criar pedido: ' . $e->getMessage(),
+                'message' => config('app.debug') ? 'Erro ao criar pedido: ' . $e->getMessage() : 'Erro ao criar pedido.',
             ], 500);
         }
     }
@@ -249,12 +263,18 @@ class PedidoController extends Controller
             'whatsapp_cliente' => 'nullable|string|max:50',
         ]);
 
-        $pedido->update($request->only([
+        $campos = [
             'titulo', 'tipo_impressao', 'observacoes',
-            'referencias', 'prazo', 'valor',
+            'referencias', 'prazo',
             'cliente_nome', 'cliente_email', 'cliente_whatsapp',
             'nome_cliente', 'email_cliente', 'whatsapp_cliente',
-        ]));
+        ];
+        // Somente admin altera o valor financeiro do pedido
+        if (auth()->user()->isAdmin()) {
+            $campos[] = 'valor';
+        }
+
+        $pedido->update($request->only($campos));
 
         return response()->json($pedido->fresh('confeccao'));
     }
@@ -277,7 +297,7 @@ class PedidoController extends Controller
                 $notificacao = app(\App\Services\WhatsAppService::class)->notificarMudancaStatus($pedido, $novoStatus);
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error("Erro ao enviar notificação WhatsApp para Pedido #{$pedido->id}: " . $e->getMessage());
-                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => $e->getMessage()];
+                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => config('app.debug') ? $e->getMessage() : null];
             }
         }
 

@@ -52,6 +52,7 @@ import RevisaoArteModal from '@/components/RevisaoArteModal'
 import { resolveMediaUrl } from '@/lib/url'
 import { format, parseISO, isPast, differenceInDays } from 'date-fns'
 import clsx from 'clsx'
+import { otimizarImagemUpload } from '@/lib/imageOptimizer'
 
 // ── DESIGN SYSTEM TOKENS ──
 // Background principal: #0B0B0C
@@ -205,6 +206,10 @@ export default function PedidoDetalhe() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [zoomScale, setZoomScale] = useState(1)
 
+  // Progresso em tempo real de upload
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null)
+  const [uploadStats, setUploadStats] = useState<{ loadedMB: string; totalMB: string } | null>(null)
+
   const { data: pedido, isLoading } = useQuery({
     queryKey: ['pedido', id],
     queryFn: () => pedidoService.buscar(Number(id)),
@@ -212,7 +217,7 @@ export default function PedidoDetalhe() {
 
   // Listener para colar imagens da área de transferência (Ctrl + V)
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       if (pedido?.status === 'cancelado') return
       const items = e.clipboardData?.items
       if (!items) return
@@ -221,7 +226,8 @@ export default function PedidoDetalhe() {
         if (items[i].type.startsWith('image/')) {
           const blob = items[i].getAsFile()
           if (blob) {
-            const pastedFile = new File([blob], `preview_${Date.now()}.png`, { type: blob.type })
+            const rawFile = new File([blob], `preview_${Date.now()}.png`, { type: blob.type })
+            const pastedFile = await otimizarImagemUpload(rawFile)
             setPreviewFiles((prev) => [...prev, pastedFile])
             colou = true
           }
@@ -229,7 +235,7 @@ export default function PedidoDetalhe() {
       }
       if (colou) {
         setShowUploadSection(true)
-        toast.success('📸 Imagem colada na nova versão!')
+        toast.success('📸 Imagem colada e otimizada na nova versão!')
       }
     }
     window.addEventListener('paste', handlePaste)
@@ -266,16 +272,33 @@ export default function PedidoDetalhe() {
   })
 
   const uploadMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (previewFiles.length === 0 && fonteFiles.length === 0) {
         throw new Error('Selecione ao menos um arquivo de visualização ou produção.')
       }
+      setUploadPercent(0)
+      setUploadStats(null)
+
+      // Otimiza previews/mockups antes de subir para economizar banda
+      const previewsOtimizados = await Promise.all(previewFiles.map((f) => otimizarImagemUpload(f)))
+
       const fd = new FormData()
-      previewFiles.forEach((file) => fd.append('previews[]', file))
+      previewsOtimizados.forEach((file) => fd.append('previews[]', file))
       fonteFiles.forEach((file) => fd.append('arquivos[]', file))
       if (notas) fd.append('notas', notas)
       if (isFinal) fd.append('is_final', 'true')
-      return arteService.enviar(Number(id), fd)
+
+      return arteService.enviar(Number(id), fd, (percent, loaded, total) => {
+        setUploadPercent(percent)
+        setUploadStats({
+          loadedMB: (loaded / (1024 * 1024)).toFixed(1),
+          totalMB: (total / (1024 * 1024)).toFixed(1),
+        })
+      })
+    },
+    onSettled: () => {
+      setUploadPercent(null)
+      setUploadStats(null)
     },
     onSuccess: () => {
       toast.success(isFinal ? '⭐ Versão Final enviada com sucesso!' : 'Nova versão enviada com sucesso!')
@@ -1556,22 +1579,38 @@ export default function PedidoDetalhe() {
                   onChange={(e) => setNotas(e.target.value)}
                 />
 
-                {/* Botão de Envio */}
+                {/* Botão de Envio com Barra de Progresso Real */}
                 <button
                   onClick={() => uploadMutation.mutate()}
                   disabled={uploadMutation.isPending || (previewFiles.length === 0 && fonteFiles.length === 0)}
-                  className="w-full py-3 rounded-xl font-bold text-xs bg-[#E7B32C] hover:bg-[#d4a020] text-black transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 select-none"
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-xs bg-[#E7B32C] hover:bg-[#d4a020] text-black transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 select-none relative overflow-hidden"
                 >
                   {uploadMutation.isPending ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
-                      Enviando arquivos da Versão {proximaVersao}...
-                    </>
+                    <div className="w-full flex flex-col items-center gap-1">
+                      <div className="flex items-center gap-2 font-bold text-xs text-black">
+                        <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
+                        <span>
+                          {uploadPercent !== null && uploadPercent < 100
+                            ? `Enviando arquivos: ${uploadPercent}% (${uploadStats?.loadedMB || 0} MB de ${uploadStats?.totalMB || 0} MB)...`
+                            : 'Processando arquivos no servidor...'}
+                        </span>
+                      </div>
+                      {uploadPercent !== null && (
+                        <div className="w-full max-w-sm h-1.5 bg-black/20 rounded-full overflow-hidden mt-0.5">
+                          <div
+                            className="h-full bg-black transition-all duration-150 rounded-full"
+                            style={{ width: `${uploadPercent}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <>
+                    <div className="flex items-center gap-2 font-bold text-xs">
                       <Upload className="w-4 h-4 stroke-[2.5]" />
-                      Enviar Versão {proximaVersao} ({previewFiles.length + fonteFiles.length} arquivos)
-                    </>
+                      <span>
+                        Enviar Versão {proximaVersao} ({previewFiles.length + fonteFiles.length} arquivos)
+                      </span>
+                    </div>
                   )}
                 </button>
               </div>

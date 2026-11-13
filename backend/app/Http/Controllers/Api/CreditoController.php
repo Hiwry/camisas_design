@@ -66,7 +66,7 @@ class CreditoController extends Controller
         $precoCredito = (float) config('services.pix.valor_credito_ia', 5.00);
         $valorTotal = round($quantidade * $precoCredito, 2);
 
-        $txid = 'CR' . strtoupper(substr(uniqid(), -6)) . rand(10, 99);
+        $txid = 'CR' . strtoupper(bin2hex(random_bytes(4)));
         $pixPayload = $this->pixService->gerarPayload($valorTotal, $txid);
         $pixQrCode  = $this->pixService->gerarQrCodeUrl($pixPayload);
 
@@ -117,10 +117,14 @@ class CreditoController extends Controller
             ]);
         }
 
-        $transacao->update([
-            'status'  => 'pago',
-            'pago_em' => now(),
-        ]);
+        // Transição atômica: evita creditar duas vezes com requisições simultâneas
+        $afetados = TransacaoCredito::where('id', $transacao->id)
+            ->where('status', '!=', 'pago')
+            ->update(['status' => 'pago', 'pago_em' => now()]);
+
+        if ($afetados === 0) {
+            return response()->json(['message' => 'Este pagamento já foi confirmado anteriormente.']);
+        }
 
         // Credita para a confecção e/ou usuário
         $novoSaldo = 0;

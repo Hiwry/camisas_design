@@ -169,18 +169,21 @@ class GrupoExportController extends Controller
             ], ';');
 
             foreach ($grupo->participantes as $p) {
+                // Neutraliza fórmulas (=,+,-,@) para evitar CSV/Excel injection
+                $seguro = fn ($v) => (is_string($v) && $v !== '' && in_array($v[0], ['=', '+', '-', '@', "	", "
+"], true)) ? "'" . $v : $v;
                 fputcsv($handle, [
                     $p->id,
-                    $p->nome_completo,
-                    $p->modelo ? $p->modelo->nome : 'N/A',
-                    $p->cor,
-                    $p->tamanho,
+                    $seguro($p->nome_completo),
+                    $p->modelo ? $seguro($p->modelo->nome) : 'N/A',
+                    $seguro($p->cor),
+                    $seguro($p->tamanho),
                     $p->quantidade,
-                    $p->nome_camisa ?? '',
-                    $p->numero_camisa ?? '',
-                    $p->apelido ?? '',
-                    $p->frase_costas ?? '',
-                    $p->observacao ?? '',
+                    $seguro($p->nome_camisa ?? ''),
+                    $seguro($p->numero_camisa ?? ''),
+                    $seguro($p->apelido ?? ''),
+                    $seguro($p->frase_costas ?? ''),
+                    $seguro($p->observacao ?? ''),
                 ], ';');
             }
 
@@ -289,7 +292,7 @@ class GrupoExportController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return response()->json([
-                'message' => 'Erro ao gerar ordem: ' . $e->getMessage(),
+                'message' => (config('app.debug') ? 'Erro ao gerar ordem: ' . $e->getMessage() : 'Erro ao gerar ordem.'),
             ], 500);
         }
     }

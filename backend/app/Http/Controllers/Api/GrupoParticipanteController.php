@@ -88,7 +88,7 @@ class GrupoParticipanteController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao adicionar participante: ' . $e->getMessage()], 500);
+            return response()->json(['message' => (config('app.debug') ? 'Erro ao adicionar participante: ' . $e->getMessage() : 'Erro ao adicionar participante.')], 500);
         }
     }
 
@@ -395,7 +395,7 @@ class GrupoParticipanteController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao aprovar solicitação: ' . $e->getMessage()], 500);
+            return response()->json(['message' => (config('app.debug') ? 'Erro ao aprovar solicitação: ' . $e->getMessage() : 'Erro ao aprovar solicitação.')], 500);
         }
     }
 }

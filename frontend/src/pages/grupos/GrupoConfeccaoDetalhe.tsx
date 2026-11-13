@@ -117,7 +117,7 @@ export default function GrupoConfeccaoDetalhe() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => window.open(grupoService.urlExportarCsv(grupoId), '_blank')}
+            onClick={() => grupoService.baixarCsv(grupoId, grupo.nome)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-semibold transition"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -310,7 +310,7 @@ export default function GrupoConfeccaoDetalhe() {
         <GradeProducao
           dados={dadosProducao}
           onExportarCsv={() => {
-            window.open(grupoService.urlExportarCsv(grupoId), '_blank')
+            grupoService.baixarCsv(grupoId, grupo.nome)
           }}
           onExportarPdf={() => {
             grupoService.baixarPdf(grupoId, grupo.nome)

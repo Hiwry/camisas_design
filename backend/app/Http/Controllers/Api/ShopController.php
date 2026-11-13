@@ -279,8 +279,15 @@ class ShopController extends Controller
         $user = $request->user();
         $confeccao = $user->confeccao;
 
+        if ($request->pedido_id && !$user->isAdmin()) {
+            $pedidoVinculado = \App\Models\Pedido::find($request->pedido_id);
+            if (!$pedidoVinculado || $pedidoVinculado->confeccao_id !== $confeccao?->id) {
+                abort(403, 'Pedido não pertence à sua conta.');
+            }
+        }
+
         $valorTotal = (float) $item['valor'];
-        $txid = 'SH' . strtoupper(substr(uniqid(), -6)) . rand(10, 99);
+        $txid = 'SH' . strtoupper(bin2hex(random_bytes(4)));
         $pixPayload = $this->pixService->gerarPayload($valorTotal, $txid);
         $pixQrCode  = $this->pixService->gerarQrCodeUrl($pixPayload);
 
@@ -492,7 +499,7 @@ class ShopController extends Controller
         $imagemPath = $request->imagem ?: '/shop/arte_avulsa_1.jpg';
         if ($request->hasFile('imagem_file')) {
             $file = $request->file('imagem_file');
-            $filename = 'item_' . time() . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
+            $filename = 'item_' . time() . '_' . Str::random(6) . '.' . \App\Support\UploadSeguro::extensao($file, \App\Support\UploadSeguro::IMAGENS, 'imagem_file');
             $path = $file->storeAs('public/shop', $filename);
             $imagemPath = '/storage/shop/' . $filename;
         }
@@ -571,7 +578,7 @@ class ShopController extends Controller
 
         if ($request->hasFile('imagem_file')) {
             $file = $request->file('imagem_file');
-            $filename = 'item_' . time() . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
+            $filename = 'item_' . time() . '_' . Str::random(6) . '.' . \App\Support\UploadSeguro::extensao($file, \App\Support\UploadSeguro::IMAGENS, 'imagem_file');
             $file->storeAs('public/shop', $filename);
             $data['imagem'] = '/storage/shop/' . $filename;
         } elseif ($request->filled('imagem')) {

@@ -189,7 +189,7 @@ class GrupoController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao criar grupo: ' . $e->getMessage()], 500);
+            return response()->json(['message' => (config('app.debug') ? 'Erro ao criar grupo: ' . $e->getMessage() : 'Erro ao criar grupo.')], 500);
         }
     }
 
@@ -394,7 +394,7 @@ class GrupoController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao duplicar grupo: ' . $e->getMessage()], 500);
+            return response()->json(['message' => (config('app.debug') ? 'Erro ao duplicar grupo: ' . $e->getMessage() : 'Erro ao duplicar grupo.')], 500);
         }
     }
 

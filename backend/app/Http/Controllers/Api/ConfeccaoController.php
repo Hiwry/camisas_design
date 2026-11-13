@@ -240,7 +240,7 @@ class ConfeccaoController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return response()->json([
-                'message' => 'Erro ao atualizar dados da confecção: ' . $e->getMessage()
+                'message' => (config('app.debug') ? 'Erro ao atualizar dados da confecção: ' . $e->getMessage() : 'Erro ao atualizar dados da confecção.')
             ], 500);
         }
     }

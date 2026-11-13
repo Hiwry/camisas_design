@@ -208,7 +208,7 @@ class GrupoPublicoController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao salvar dados: ' . $e->getMessage()], 500);
+            return response()->json(['message' => (config('app.debug') ? 'Erro ao salvar dados: ' . $e->getMessage() : 'Erro ao salvar dados.')], 500);
         }
     }
 

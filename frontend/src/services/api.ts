@@ -65,10 +65,21 @@ export const pedidoService = {
 export const arteService = {
   listar: (pedidoId: number) =>
     api.get(`/pedidos/${pedidoId}/artes`).then((r) => r.data),
-  enviar: (pedidoId: number, formData: FormData) =>
-    api.post(`/pedidos/${pedidoId}/artes`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then((r) => r.data),
+  enviar: (
+    pedidoId: number,
+    formData: FormData,
+    onProgress?: (percent: number, loaded: number, total: number) => void
+  ) =>
+    api
+      .post(`/pedidos/${pedidoId}/artes`, formData, {
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress(percent, progressEvent.loaded, progressEvent.total)
+          }
+        },
+      })
+      .then((r) => r.data),
   marcarFinal: (arteId: number) =>
     api.patch(`/artes/${arteId}/marcar-final`).then((r) => r.data),
   desmarcarFinal: (arteId: number) =>

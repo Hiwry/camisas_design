@@ -27,7 +27,7 @@ class ArteEnviadaParaAprovacao extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject("🎨 Sua arte está pronta para aprovação — {$this->pedido->titulo}")
-            ->greeting("Olá{$this->pedido->nome_cliente ? ', ' . $this->pedido->nome_cliente : ''}!")
+            ->greeting('Olá' . ($this->pedido->nome_cliente ? ', ' . $this->pedido->nome_cliente : '') . '!')
             ->line("A arte do pedido **{$this->pedido->titulo}** está pronta para sua aprovação.")
             ->action('Ver e Aprovar Arte', $this->pedido->linkAprovacao())
             ->line('Você pode aprovar ou solicitar revisão diretamente pelo link acima.')

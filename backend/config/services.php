@@ -35,11 +35,14 @@ return [
         ],
     ],
 
+    'site_url' => env('SITE_URL', 'https://camisetadesign.com.br'),
+
     'evolution' => [
         'url'          => env('EVOLUTION_API_URL', 'http://localhost:8080'),
         'key'          => env('EVOLUTION_API_KEY'),
         'instance'     => env('EVOLUTION_INSTANCE', 'camiseta-design'),
         'admin_number' => env('WHATSAPP_ADMIN_NUMBER'),
+        'webhook_secret' => env('WHATSAPP_WEBHOOK_SECRET'),
     ],
 
     'openrouter' => [

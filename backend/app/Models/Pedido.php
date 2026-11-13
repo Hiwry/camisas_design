@@ -22,6 +22,10 @@ class Pedido extends Model
         'referencias',
         'prazo',
         'valor',
+        'pagamento_status',
+        'pix_txid',
+        'orcamento_enviado_em',
+        'pago_em',
         'token_aprovacao',
         'cliente_nome',
         'cliente_email',
@@ -35,6 +39,8 @@ class Pedido extends Model
         'prazo' => 'date',
         'referencias' => 'array',
         'valor' => 'float',
+        'orcamento_enviado_em' => 'datetime',
+        'pago_em' => 'datetime',
     ];
 
     protected $appends = [

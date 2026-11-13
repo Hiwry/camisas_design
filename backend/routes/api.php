@@ -42,7 +42,7 @@ Route::middleware('throttle:5,1')->group(function () {
 });
 
 // Webhook público da Evolution API
-Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
+Route::middleware('throttle:120,1')->post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
 
 // Portfólio / Catálogo público de trabalhos
 Route::get('/portfolio', [PortfolioController::class, 'index']);
@@ -51,8 +51,8 @@ Route::get('/portfolio/{portfolio}', [PortfolioController::class, 'show']);
 Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [PortfolioController::class, 'curtir']);
 
 // Rastreio público de pedidos pelo WhatsApp / Telefone
-Route::middleware('throttle:30,1')->post('/publico/rastreio', [RastreioController::class, 'rastrear']);
-Route::middleware('throttle:30,1')->post('/publico/pedidos/{id}/anexar-referencias', [RastreioController::class, 'anexarReferencias']);
+Route::middleware('throttle:10,1')->post('/publico/rastreio', [RastreioController::class, 'rastrear']);
+Route::middleware('throttle:10,1')->post('/publico/pedidos/{id}/anexar-referencias', [RastreioController::class, 'anexarReferencias']);
 
 // Rotas públicas do módulo Grupos de Camisas
 Route::middleware('throttle:60,1')->group(function () {
@@ -60,9 +60,11 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/publico/grupos/{token}/verificar-numero', [GrupoPublicoController::class, 'verificarNumero']);
     Route::get('/publico/grupos/{token}/participante/{tokenEdicao}', [GrupoPublicoController::class, 'consultarEdicao']);
 });
-Route::middleware('throttle:30,1')->group(function () {
+Route::middleware('throttle:10,1')->group(function () {
     Route::post('/publico/grupos/{token}/validar-senha', [GrupoPublicoController::class, 'validarSenha']);
     Route::post('/publico/grupos/{token}/participar', [GrupoPublicoController::class, 'participar']);
+});
+Route::middleware('throttle:30,1')->group(function () {
     Route::put('/publico/grupos/{token}/participante/{tokenEdicao}', [GrupoPublicoController::class, 'salvarEdicao']);
     Route::post('/publico/grupos/{token}/solicitar-fora-prazo', [GrupoPublicoController::class, 'solicitarForaPrazo']);
 });
@@ -73,7 +75,7 @@ Route::middleware('throttle:30,1')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'ativo'])->group(function () {
 
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me',      [AuthController::class, 'me']);

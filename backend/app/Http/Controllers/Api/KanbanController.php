@@ -119,7 +119,7 @@ class KanbanController extends Controller
                 $notificacao = app(\App\Services\WhatsAppService::class)->notificarMudancaStatus($pedido, $novoStatus);
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error("Erro ao enviar notificação WhatsApp para Pedido #{$pedido->id}: " . $e->getMessage());
-                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => $e->getMessage()];
+                $notificacao = ['enviado' => false, 'motivo' => 'erro_excecao', 'erro' => config('app.debug') ? $e->getMessage() : null];
             }
         }
 

@@ -52,15 +52,21 @@ class ShopPedido extends Model
      */
     public function marcarComoPago(): bool
     {
-        if ($this->status === 'pago' || $this->status === 'concluido') {
+        // Transição atômica pendente -> pago: só uma requisição consegue creditar
+        $novoStatus = $this->categoria === 'artes' || $this->categoria === 'ia' ? 'concluido' : 'pago';
+        $afetados = static::where('id', $this->id)
+            ->whereNotIn('status', ['pago', 'concluido'])
+            ->update([
+                'status'       => $novoStatus,
+                'pago_em'      => now(),
+                'concluido_em' => $novoStatus === 'concluido' ? now() : null,
+            ]);
+
+        if ($afetados === 0) {
             return false;
         }
 
-        $this->update([
-            'status'  => $this->categoria === 'artes' || $this->categoria === 'ia' ? 'concluido' : 'pago',
-            'pago_em' => now(),
-            'concluido_em' => $this->categoria === 'artes' || $this->categoria === 'ia' ? now() : null,
-        ]);
+        $this->refresh();
 
         // Credita benefícios
         if ($this->confeccao_id) {

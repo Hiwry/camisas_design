@@ -23,12 +23,12 @@ class ArteController extends Controller
         $this->authorizePedido($pedido);
 
         $request->validate([
-            'arquivo'    => 'nullable|file|max:51200',
-            'preview'    => 'nullable|file|max:20480',
+            'arquivo'    => 'nullable|file|max:204800',
+            'preview'    => 'nullable|file|max:30720',
             'arquivos'   => 'nullable|array',
-            'arquivos.*' => 'file|max:51200',
+            'arquivos.*' => 'file|max:204800',
             'previews'   => 'nullable|array',
-            'previews.*' => 'file|max:20480',
+            'previews.*' => 'file|max:30720',
             'notas'      => 'nullable|string',
             'is_final'   => 'nullable',
         ]);
@@ -43,7 +43,9 @@ class ArteController extends Controller
         }
 
         $versao = Arte::proximaVersao($pedido->id);
-        $disk = in_array(config('filesystems.default'), ['r2', 's3']) ? config('filesystems.default') : 'public';
+        $disk = 'public';
+        @mkdir(storage_path("app/public/previews/{$pedido->id}"), 0775, true);
+        @mkdir(storage_path("app/public/artes/{$pedido->id}"), 0775, true);
         $arquivosLista = [];
         $primeiroPreviewUrl = null;
         $primeiroPreviewNome = null;
@@ -53,7 +55,7 @@ class ArteController extends Controller
         $primeiroFonteTamanho = null;
 
         $processarArquivo = function ($file, $isExplicitPreview = false) use (&$arquivosLista, &$primeiroPreviewUrl, &$primeiroPreviewNome, &$primeiroFonteUrl, &$primeiroFonteNome, &$primeiroFonteTipo, &$primeiroFonteTamanho, $pedido, $versao, $disk) {
-            $ext = strtolower($file->getClientOriginalExtension());
+            $ext = \App\Support\UploadSeguro::extensao($file);
             $origName = $file->getClientOriginalName();
             $size = $file->getSize();
             $ehImagem = in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg']);

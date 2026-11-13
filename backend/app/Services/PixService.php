@@ -34,7 +34,7 @@ class PixService
 
         $payload =
             $this->tlv('00', '01') .                     // Payload Format Indicator
-            $this->tlv('01', '12') .                     // Point of Initiation (12 = dinâmico / recorrente)
+            $this->tlv('01', '11') .                     // Point of Initiation (11 = estático com chave Pix)
             $mai .                                       // Informações da conta Pix
             $this->tlv('52', '0000') .                   // Merchant Category Code
             $this->tlv('53', '986') .                    // Moeda (986 = BRL)

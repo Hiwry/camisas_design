@@ -1,5 +1,4 @@
 import api from './api'
-import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import type { Grupo, GrupoParticipante, TotaisProducaoResponse } from '@/types/grupo'
 import { gerarEBaixarPdfOrdem } from '@/lib/pdfOrdemProducao'
@@ -67,21 +66,6 @@ export const grupoService = {
   totaisProducao: (grupoId: number) =>
     api.get<TotaisProducaoResponse>(`/grupos/${grupoId}/totais-producao`).then((r) => r.data),
 
-  urlExportarCsv: (grupoId: number) => {
-    const token = useAuthStore.getState().token
-    return `${api.defaults.baseURL}/grupos/${grupoId}/exportar-csv${token ? `?token=${token}` : ''}`
-  },
-
-  urlExportarPdf: (grupoId: number) => {
-    const token = useAuthStore.getState().token
-    return `${api.defaults.baseURL}/grupos/${grupoId}/exportar-pdf${token ? `?token=${token}` : ''}`
-  },
-
-  urlImprimirOrdem: (grupoId: number) => {
-    const token = useAuthStore.getState().token
-    return `${api.defaults.baseURL}/grupos/${grupoId}/imprimir-ordem${token ? `?token=${token}` : ''}`
-  },
-
   baixarPdf: async (grupoId: number, nomeGrupo = 'grupo') => {
     const toastId = toast.loading('Gerando PDF da Ordem de Produção...')
     try {
@@ -95,8 +79,15 @@ export const grupoService = {
       console.warn('Erro ao gerar PDF localmente, tentando fallback:', err)
       toast.dismiss(toastId)
       // Se falhar, abre a versão HTML pronta para imprimir / Salvar em PDF
-      const printUrl = grupoService.urlImprimirOrdem(grupoId)
-      window.open(printUrl, '_blank')
+      // Busca o HTML com o token no cabeçalho (nunca na URL) e abre em uma aba local
+      try {
+        const res = await api.get(`/grupos/${grupoId}/imprimir-ordem`, { responseType: 'blob' })
+        const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'text/html;charset=utf-8' }))
+        window.open(blobUrl, '_blank')
+      } catch {
+        toast.error('Não foi possível gerar a ordem de produção.')
+        return
+      }
       toast('Abrindo ordem para impressão / salvar em PDF...', { icon: '🖨️' })
     }
   },

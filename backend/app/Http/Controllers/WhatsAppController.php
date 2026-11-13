@@ -61,7 +61,7 @@ class WhatsAppController extends Controller
                 'conectado' => false,
             ]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erro ao conectar à Evolution API: ' . $e->getMessage()], 502);
+            return response()->json(['message' => 'Erro ao conectar à Evolution API.'], 502);
         }
     }
 
@@ -109,34 +109,34 @@ class WhatsAppController extends Controller
      */
     public function webhook(Request $request): JsonResponse
     {
-        // Validação da chave da Evolution API para impedir requisições forjadas
-        $expectedKey = config('services.evolution.key');
-        $expectedInstance = config('services.evolution.instance', 'camiseta-design');
+        // Validação da chave da Evolution API para impedir requisições forjadas.
+        // Sem chave configurada, o webhook é recusado (fail-closed): ele controla o bot
+        // com privilégios de admin, então nunca pode ficar aberto.
+        $expectedKey = (string) config('services.evolution.key');
+        $webhookSecret = (string) config('services.evolution.webhook_secret');
         $ip = $request->ip();
-        $isLocal = in_array($ip, ['127.0.0.1', '::1', 'localhost']);
+        // Chamada local legítima = loopback SEM cabeçalhos de proxy (evita spoof via proxy reverso)
+        $isLocal = in_array($ip, ['127.0.0.1', '::1'], true)
+            && !$request->headers->has('X-Forwarded-For')
+            && !$request->headers->has('X-Real-IP');
 
         $providedKey = $request->header('apikey')
             ?? $request->header('x-api-key')
             ?? $request->bearerToken()
-            ?? $request->query('apikey')
             ?? $request->input('apikey')
             ?? $request->input('data.apikey');
 
         $payload = $request->all();
-        $payloadInstance = $payload['instance'] ?? $payload['data']['instance'] ?? null;
 
-        // Valida se houver chave configurada e não for chamada local com instância correta
-        if (!empty($expectedKey) && !$isLocal) {
-            $instanciaConfere = !empty($payloadInstance) && $payloadInstance === $expectedInstance;
-            $chaveConfere = !empty($providedKey) && $providedKey === $expectedKey;
+        $chaveConfere = $expectedKey !== '' && is_string($providedKey) && $providedKey !== ''
+            && hash_equals($expectedKey, $providedKey);
+        $segredoConfere = $webhookSecret !== '' && hash_equals($webhookSecret, (string) $request->query('secret', ''));
 
-            if (!$chaveConfere && !$instanciaConfere) {
-                Log::warning('WhatsApp Webhook: tentativa não autorizada com chave inválida ou ausente.', [
-                    'ip' => $ip,
-                    'provided_key' => $providedKey ? 'fornecida_mas_diferente' : 'ausente',
-                ]);
-                return response()->json(['status' => 'unauthorized', 'message' => 'Chave de webhook inválida.'], 401);
-            }
+        if (!$chaveConfere && !$segredoConfere && !$isLocal) {
+            Log::warning('WhatsApp Webhook: tentativa não autorizada com chave inválida ou ausente.', [
+                'ip' => $ip,
+            ]);
+            return response()->json(['status' => 'unauthorized', 'message' => 'Chave de webhook inválida.'], 401);
         }
 
         Log::debug('WhatsApp webhook recebido', [
@@ -157,6 +157,14 @@ class WhatsAppController extends Controller
         // Se for um array de mensagens, pega o primeiro item
         if (isset($dados[0]) && is_array($dados[0])) {
             $dados = $dados[0];
+        }
+
+        // Deduplicação: a Evolution às vezes reenvia o mesmo evento (evita responder 2x)
+        $idMensagem = $dados['key']['id'] ?? null;
+        if (is_string($idMensagem) && $idMensagem !== '') {
+            if (!\Illuminate\Support\Facades\Cache::add('wa_msg_' . $idMensagem, 1, now()->addMinutes(15))) {
+                return response()->json(['status' => 'ignored', 'reason' => 'duplicate']);
+            }
         }
 
         // Tenta extrair a mensagem de texto

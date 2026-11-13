@@ -175,8 +175,26 @@ class RevisaoArteController extends Controller
 
     private function imagemParaOpenRouter(string $url): ?array
     {
+        // Proteção SSRF: só baixa de http(s) e nunca de rede interna (exceto o próprio host da aplicação)
+        $partes = parse_url($url);
+        $host   = strtolower($partes['host'] ?? '');
+        $hostApp = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+        if (!in_array(strtolower($partes['scheme'] ?? ''), ['http', 'https'], true) || $host === '') {
+            return null;
+        }
+        if ($host !== $hostApp) {
+            $ips = gethostbynamel($host) ?: [];
+            if (empty($ips)) return null;
+            foreach ($ips as $ip) {
+                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    Log::warning("RevisaoArte: URL bloqueada por apontar para rede interna: {$host}");
+                    return null;
+                }
+            }
+        }
+
         try {
-            $response = Http::timeout(15)->get($url);
+            $response = Http::timeout(15)->withOptions(['allow_redirects' => false])->get($url);
             if (!$response->ok()) return null;
 
             $mime    = $this->mimeFromUrl($url);
