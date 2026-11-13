@@ -785,9 +785,16 @@ trait AtendimentoWhatsApp
     private function contarOrcamentosPendentes(): int
     {
         try {
-            if (!$this->pagamentoDisponivel()) return 0;
-            return Pedido::whereIn('pagamento_status', ['aguardando_orcamento', 'aguardando_pagamento'])
-                ->where('status', '!=', 'cancelado')->count();
+            $n = 0;
+            if ($this->pagamentoDisponivel()) {
+                $n += Pedido::whereIn('pagamento_status', ['aguardando_orcamento', 'aguardando_pagamento'])->where('status', '!=', 'cancelado')->count();
+            }
+            if ($this->solicitacoesDisponivel()) {
+                $n += \App\Models\WhatsAppSolicitacao::where('status', 'aguardando_pagamento')->count();
+            }
+            return $n;
+
+
         } catch (\Throwable $e) {
             return 0;
         }
@@ -862,6 +869,10 @@ trait AtendimentoWhatsApp
     /** Cliente digitou "pix": reenvia a cobrança pendente dos pedidos DELE */
     private function respostaPixCliente(string $numero, array $remetente): ?string
     {
+        if ($this->reenviarPixSolicitacao($numero)) {
+            return '';
+        }
+
         if (!$this->pagamentoDisponivel()) return null;
 
         $pedidos = $this->buscarPedidosPorNumero($numero);
@@ -886,6 +897,19 @@ trait AtendimentoWhatsApp
 
     private function comandoPagamentoAdmin(string $mensagem): ?string
     {
+        // ── Solicitações (S12): o pedido só existe depois do pagamento ──
+        // pago S12 | valor S12 [150|combo|arte+expressa] | descartar S12
+        if (preg_match('/^\s*(?:pago|paguei|confirmar|confirmado|pagamento)\s+#?s(\d{1,7})\s*$/iu', $mensagem, $m)) {
+            return $this->confirmarSolicitacao((int) $m[1]);
+        }
+        if (preg_match('/^\s*(?:valor|or[cç]amento)\s+#?s(\d{1,7})(?:\s+(.+?))?\s*$/iu', $mensagem, $m)) {
+            return $this->ajustarValorSolicitacao((int) $m[1], $m[2] ?? null);
+        }
+        if (preg_match('/^\s*(?:descartar|cancelar|excluir)\s+#?s(\d{1,7})\s*$/iu', $mensagem, $m)) {
+            return $this->descartarSolicitacao((int) $m[1]);
+        }
+
+        // ── Pedidos já existentes (ex.: criados antes desta regra) ──
         // valor 42  (arte padrão do Shop) | valor 42 150 | valor 42 arte+expressa | orçamento 42 combo
         if (preg_match('/^\s*(?:valor|or[cç]amento)\s+#?(\d{1,7})(?:\s+(.+?))?\s*$/iu', $mensagem, $m)) {
             return $this->definirValorPedido((int) $m[1], $m[2] ?? null);
@@ -981,7 +1005,7 @@ trait AtendimentoWhatsApp
 
     private function relatorioOrcamentosAdmin(): string
     {
-        if (!$this->pagamentoDisponivel()) {
+        if (!$this->pagamentoDisponivel() && !$this->solicitacoesDisponivel()) {
             return "⚠️ Rode *php artisan migrate* no servidor para habilitar o orçamento/Pix.";
         }
 
@@ -1005,7 +1029,7 @@ trait AtendimentoWhatsApp
             $txt .= "  • #{$p->id} {$p->titulo} — {$this->brl((float) $p->valor)} — {$cli}" . ($dias >= 1 ? " ⏰ {$dias}d sem pagar" : '') . "\n    ➜ *pago {$p->id}*\n";
         }
 
-        return rtrim($txt);
+        return rtrim($txt . $this->relatorioSolicitacoesAdmin());
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1178,5 +1202,406 @@ trait AtendimentoWhatsApp
         }
         return implode("
 ", $linhas);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SOLICITAÇÃO PRÉ-PAGAMENTO: o PEDIDO só é criado depois que o Pix é confirmado
+    // ═══════════════════════════════════════════════════════════
+
+    private function solicitacoesDisponivel(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                $ok = Schema::hasTable('whatsapp_solicitacoes');
+            } catch (\Throwable $e) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
+    private function nomeTipoImpressao(?string $tipo): string
+    {
+        return match ($tipo) {
+            'sublimacao' => 'Sublimação Total',
+            'bordado'    => 'Bordado',
+            'serigrafia' => 'Serigrafia / Silk',
+            default      => (string) $tipo,
+        };
+    }
+
+    /**
+     * Esta conversa precisa pagar antes de virar pedido?
+     * Sim para cliente/lead que vai para a confecção interna (atendimento direto).
+     * Não para admin (registra para terceiros) nem para confecções parceiras (pagam pelo plano).
+     */
+    private function fluxoExigePagamento(array $estado, array $remetente): bool
+    {
+        if (($remetente['tipo'] ?? '') === 'admin') {
+            return false;
+        }
+
+        $confeccao = null;
+        if (!empty($estado['confeccao_id'])) {
+            $confeccao = Confeccao::find($estado['confeccao_id']);
+        }
+        if (!$confeccao && !empty($remetente['confeccao'])) {
+            $confeccao = $remetente['confeccao'];
+        }
+
+        return !$confeccao || $confeccao->nome === self::NOME_CONFECCAO_DIRETA;
+    }
+
+    /** Serviços e urgência do Shop que o cliente pode somar ao pedido (numerados 1..n) */
+    private function extrasShop(): array
+    {
+        return array_values(array_filter(
+            $this->itensShop(),
+            fn ($i) => in_array($i['categoria'], ['servicos', 'urgencia'], true)
+        ));
+    }
+
+    private function promptExtras(array $extras): string
+    {
+        $arte = $this->itemArtePadrao();
+        $txt = "➕ *Deseja adicionar algo ao pedido?*\n\n";
+        if ($arte) {
+            $txt .= "A criação da arte custa *" . $this->brl($arte['valor']) . "*. Opcionais:\n\n";
+        }
+        foreach ($extras as $n => $i) {
+            $txt .= '*' . ($n + 1) . "* — {$i['nome']}: *" . $this->brl($i['valor']) . "*"
+                . ($i['entrega'] !== '' ? " _({$i['entrega']})_" : '') . "\n";
+        }
+        return $txt . "\nResponda com os números (ex: *1* ou *1 3*) ou *0* para não adicionar nada.";
+    }
+
+    private function promptObservacoes(array $estado): string
+    {
+        $tipoNome = $this->nomeTipoImpressao($estado['tipo_impressao'] ?? 'sublimacao') ?: 'Produção';
+        $previa = !empty($estado['obs_previa'])
+            ? "\n_Já anotei: “" . mb_substr($estado['obs_previa'], 0, 80) . "”. Se não tiver mais nada, digite *nenhuma*._\n"
+            : '';
+
+        return "📝 *Detalhes e observações ({$tipoNome})*\n{$previa}\n"
+            . "Descreva cores, referências e detalhes, ou *envie fotos da peça/estampa direto aqui*:\n\n"
+            . "_(Se preferir explicar depois, basta digitar *nenhuma*)_";
+    }
+
+    /** Monta itens e total a partir do Shop: 1 arte + extras escolhidos */
+    private function calcularItensSolicitacao(array $codigosExtras): ?array
+    {
+        $arte = $this->itemArtePadrao();
+        if (!$arte) return null;
+
+        $itens = [['nome' => $arte['nome'], 'valor' => $arte['valor']]];
+        $total = $arte['valor'];
+
+        foreach ($codigosExtras as $codigo) {
+            $item = $this->itemShopPorCodigo((string) $codigo);
+            if ($item) {
+                $itens[] = ['nome' => $item['nome'], 'valor' => $item['valor']];
+                $total += $item['valor'];
+            }
+        }
+
+        return ['itens' => $itens, 'valor' => round($total, 2)];
+    }
+
+    private function descricaoItens(array $itens): string
+    {
+        return implode("
+• ", array_map(fn ($i) => isset($i['valor']) ? "{$i['nome']} — " . $this->brl((float) $i['valor']) : $i['nome'], $itens));
+    }
+
+    /**
+     * Fecha o fluxo: guarda a solicitação, envia valor + Pix ao cliente e avisa o admin.
+     * NÃO cria o pedido.
+     */
+    private function criarSolicitacaoPagamento(string $numero, string $nomeCliente, array $estado, ?string $obs, array $referencias, array $remetente): string
+    {
+        $stateKey = 'wa_fluxo_pedido_' . $numero;
+
+        if (!$this->solicitacoesDisponivel()) {
+            Cache::forget($stateKey);
+            Log::error('WhatsApp Bot: tabela whatsapp_solicitacoes ausente. Rode php artisan migrate.');
+            $this->notificarAdmins("⚠️ *Bot sem a tabela de solicitações!* Um cliente tentou fazer pedido, mas o banco não está atualizado. Rode *php artisan migrate* no servidor.\nCliente: " . $this->formatarTelefone($numero) . " — " . $this->linkWa($numero));
+            return "😕 Estamos com uma instabilidade para registrar pedidos agora. Já avisei nossa equipe, que vai falar com você por aqui em instantes.";
+        }
+
+        $calc = $this->calcularItensSolicitacao($estado['extras'] ?? []);
+        if (!$calc) {
+            Cache::forget($stateKey);
+            $this->notificarAdmins("⚠️ O Shop está sem item de arte para calcular o valor. Cliente: " . $this->formatarTelefone($numero) . " — " . $this->linkWa($numero));
+            return "😕 Não consegui calcular o valor agora. Já avisei nossa equipe, que retorna por aqui em instantes.";
+        }
+
+        $sol = \App\Models\WhatsAppSolicitacao::create([
+            'numero'          => $this->normalizarNumeroBR($numero),
+            'numero_original' => preg_replace('/\D/', '', $numero),
+            'nome'            => $nomeCliente,
+            'titulo'          => $estado['titulo'] ?? 'Pedido via WhatsApp',
+            'tipo_impressao'  => $estado['tipo_impressao'] ?? 'sublimacao',
+            'quantidade'      => $estado['quantidade'] ?? null,
+            'observacoes'     => $obs,
+            'referencias'     => !empty($referencias) ? $referencias : null,
+            'itens'           => $calc['itens'],
+            'valor'           => $calc['valor'],
+            'pix_txid'        => 'SOL' . strtoupper(bin2hex(random_bytes(4))),
+            'status'          => 'aguardando_pagamento',
+        ]);
+
+        Cache::forget($stateKey);
+        $this->atualizarContato($numero, ['nome' => $nomeCliente, 'status' => 'aguardando_pagamento', 'interesse' => 'novo_pedido']);
+
+        $perfil = match ($remetente['tipo'] ?? 'lead') {
+            'cliente' => 'Cliente recorrente',
+            default   => 'Novo cliente (1º contato)',
+        };
+        $this->notificarAdmins(
+            "🧾 *Nova solicitação aguardando pagamento — S{$sol->id}*\n━━━━━━━━━━━━━━━━━━━━━\n"
+            . "• *Cliente:* {$nomeCliente} ({$perfil})\n"
+            . "• *WhatsApp:* " . $this->formatarTelefone($numero) . " — " . $this->linkWa($numero) . "\n"
+            . "• *Peça:* {$sol->titulo} — " . $this->nomeTipoImpressao($sol->tipo_impressao) . "\n"
+            . ($sol->quantidade ? "• *Quantidade:* {$sol->quantidade}\n" : '')
+            . "• *Itens:* " . $this->descricaoItens($calc['itens']) . "\n"
+            . "• *Total:* *" . $this->brl($sol->valor) . "*\n"
+            . ($obs ? "• *Obs:* {$obs}\n" : '')
+            . (!empty($referencias) ? "• *Fotos:* " . count($referencias) . " arquivo(s)\n" : '')
+            . "\nO cliente já recebeu o valor e o Pix. O pedido *só será criado* quando você confirmar:\n➜ *pago S{$sol->id}*\n"
+            . "Para mudar o valor: *valor S{$sol->id} 150* | Descartar: *descartar S{$sol->id}*"
+        );
+
+        $this->enviarCobrancaSolicitacao($numero, $sol);
+
+        return '';
+    }
+
+    /** Mensagens de cobrança: [resumo + valor, código Pix copia-e-cola] */
+    private function mensagensPixSolicitacao(\App\Models\WhatsAppSolicitacao $s): array
+    {
+        $pix = app(\App\Services\PixService::class);
+        $payload = $pix->gerarPayload((float) $s->valor, $s->pix_txid ?: ('SOL' . $s->id));
+        $pn = $this->primeiroNome($s->nome);
+
+        $texto = "💰 *Resumo e valor" . ($pn ? " — {$pn}" : '') . "*\n"
+            . "━━━━━━━━━━━━━━━━━━━━━\n"
+            . "• *Peça:* {$s->titulo}\n"
+            . "• *Processo:* " . $this->nomeTipoImpressao($s->tipo_impressao) . "\n"
+            . ($s->quantidade ? "• *Quantidade:* {$s->quantidade}\n" : '')
+            . "• *Itens:* " . $this->descricaoItens($s->itens ?? []) . "\n"
+            . "• *Total:* *" . $this->brl((float) $s->valor) . "*\n\n"
+            . "✅ *Seu pedido será registrado e a criação da arte começa assim que o pagamento for confirmado.*\n\n"
+            . "💳 Pague via *Pix*:\n"
+            . "🔑 *Chave (celular):* " . $this->formatarTelefone(config('services.pix.chave')) . "\n"
+            . "👤 *Favorecido:* " . config('services.pix.beneficiario') . "\n\n"
+            . "👇 Ou use o *Pix Copia e Cola* na próxima mensagem.\n\n"
+            . "📸 Depois de pagar, *envie o comprovante aqui*. Para ver o código de novo, digite *pix*.";
+
+        return [$texto, $payload];
+    }
+
+    private function enviarCobrancaSolicitacao(string $numero, \App\Models\WhatsAppSolicitacao $s): void
+    {
+        [$texto, $payload] = $this->mensagensPixSolicitacao($s);
+        $this->wa->enviarTexto($numero, $texto);
+        $this->wa->enviarTexto($numero, $payload);
+    }
+
+    private function solicitacaoPendentePorNumero(string $numero): ?\App\Models\WhatsAppSolicitacao
+    {
+        if (!$this->solicitacoesDisponivel()) return null;
+        try {
+            return \App\Models\WhatsAppSolicitacao::where('numero', $this->normalizarNumeroBR($numero))
+                ->where('status', 'aguardando_pagamento')->orderByDesc('id')->first();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Texto para "meus pedidos": solicitações ainda sem pagamento */
+    private function textoSolicitacoesPendentes(string $numero): string
+    {
+        if (!$this->solicitacoesDisponivel()) return '';
+        try {
+            $lista = \App\Models\WhatsAppSolicitacao::where('numero', $this->normalizarNumeroBR($numero))
+                ->where('status', 'aguardando_pagamento')->orderByDesc('id')->limit(3)->get();
+        } catch (\Throwable $e) {
+            return '';
+        }
+        if ($lista->isEmpty()) return '';
+
+        $txt = "💳 *Aguardando pagamento*\n";
+        foreach ($lista as $s) {
+            $txt .= "• *{$s->titulo}* — " . $this->brl((float) $s->valor)
+                . ($s->comprovante_em ? " — 🧾 comprovante recebido, em conferência" : " — digite *pix* para receber o código") . "\n";
+        }
+        return $txt . "_O pedido é criado assim que o pagamento é confirmado._\n";
+    }
+
+    /** Cliente mandou imagem/documento enquanto há Pix pendente = comprovante */
+    private function tratarComprovante(string $numero, array $remetente): bool
+    {
+        $sol = $this->solicitacaoPendentePorNumero($numero);
+        if (!$sol) return false;
+
+        $primeira = !$sol->comprovante_em;
+        $sol->comprovante_em = now();
+        $sol->save();
+
+        $this->responder($numero, "🧾 *Comprovante recebido!* Vamos conferir o pagamento de " . $this->brl((float) $sol->valor) . " e já criamos o seu pedido. Assim que confirmarmos, você recebe a mensagem por aqui. 🎨");
+
+        if ($primeira) {
+            $this->notificarAdmins(
+                "🧾 *Possível comprovante de pagamento — S{$sol->id}*\n"
+                . "• *Cliente:* " . ($sol->nome ?? '—') . " — " . $this->linkWa($numero) . "\n"
+                . "• *Peça:* {$sol->titulo}\n• *Valor:* " . $this->brl((float) $sol->valor) . "\n\n"
+                . "Confira o Pix no banco e confirme: ➜ *pago S{$sol->id}*"
+            );
+        }
+        return true;
+    }
+
+    /** Cliente digitou "pix": reenvia o código das solicitações pendentes */
+    private function reenviarPixSolicitacao(string $numero): bool
+    {
+        $sol = $this->solicitacaoPendentePorNumero($numero);
+        if (!$sol) return false;
+        $this->enviarCobrancaSolicitacao($numero, $sol);
+        return true;
+    }
+
+    // ─── Admin: pago S12 / valor S12 [..] / descartar S12 ───
+
+    private function confirmarSolicitacao(int $id): string
+    {
+        if (!$this->solicitacoesDisponivel()) {
+            return "⚠️ Rode *php artisan migrate* no servidor.";
+        }
+
+        $sol = \App\Models\WhatsAppSolicitacao::find($id);
+        if (!$sol) return "❌ Solicitação *S{$id}* não encontrada.";
+        if ($sol->status === 'pago' && $sol->pedido_id) return "ℹ️ A solicitação *S{$id}* já foi paga — pedido *#{$sol->pedido_id}* criado.";
+        if ($sol->status === 'cancelado') return "❌ A solicitação *S{$id}* foi descartada.";
+
+        $confeccao = $this->confeccaoDireta();
+        $slaHoras = Confeccao::PLANOS[$confeccao->plano]['sla_horas'] ?? 48;
+        $destino = $sol->numero_original ?: $sol->numero;
+
+        // Atômico: só uma confirmação cria o pedido (evita pedido duplicado por duplo "pago")
+        $marcado = \App\Models\WhatsAppSolicitacao::where('id', $sol->id)->where('status', 'aguardando_pagamento')
+            ->update(['status' => 'pago', 'pago_em' => now()]);
+        if ($marcado === 0) {
+            return "ℹ️ A solicitação *S{$id}* já foi confirmada por outra requisição.";
+        }
+
+        try {
+            $dados = [
+                'confeccao_id'     => $confeccao->id,
+                'titulo'           => $sol->titulo,
+                'tipo_impressao'   => $sol->tipo_impressao,
+                'status'           => 'aguardando_briefing',
+                'observacoes'      => trim(($sol->observacoes ?? '') . ($sol->quantidade ? "\nQuantidade estimada: {$sol->quantidade}" : '')) ?: null,
+                'prazo'            => now()->addHours($slaHoras),
+                'referencias'      => $sol->referencias ?: null,
+                'valor'            => $sol->valor,
+            ];
+            foreach (['cliente_whatsapp', 'whatsapp_cliente'] as $col) {
+                if ($this->hasColumnSafe('pedidos', $col)) $dados[$col] = $destino;
+            }
+            foreach (['cliente_nome', 'nome_cliente'] as $col) {
+                if ($this->hasColumnSafe('pedidos', $col)) $dados[$col] = $sol->nome ?? 'Cliente WhatsApp';
+            }
+            if ($this->pagamentoDisponivel()) {
+                $dados['pagamento_status'] = 'pago';
+                $dados['pix_txid'] = $sol->pix_txid;
+                $dados['pago_em'] = now();
+            }
+
+            $pedido = Pedido::create($dados);
+        } catch (\Throwable $e) {
+            // Falhou ao criar: volta a solicitação para pendente para poder tentar de novo
+            \App\Models\WhatsAppSolicitacao::where('id', $sol->id)->update(['status' => 'aguardando_pagamento', 'pago_em' => null]);
+            Log::error('WhatsApp Bot: erro ao criar pedido após pagamento: ' . $e->getMessage());
+            return "❌ O pagamento foi marcado, mas deu erro ao criar o pedido. Tente *pago S{$id}* de novo. Se persistir, veja o log do servidor.";
+        }
+
+        $sol->pedido_id = $pedido->id;
+        $sol->save();
+
+        Cache::put('wa_ultimo_pedido_' . $destino, $pedido->id, now()->addDays(2));
+        if ($this->contatosDisponivel()) {
+            try {
+                $this->atualizarContato($destino, ['status' => 'convertido']);
+                WhatsAppContato::where('numero', $this->normalizarNumeroBR($destino))->increment('pedidos_criados');
+            } catch (\Throwable $e) {}
+        }
+
+        $pn = $this->primeiroNome($sol->nome);
+        $this->wa->enviarTexto($destino,
+            "✅ *Pagamento confirmado" . ($pn ? ", {$pn}" : '') . "!* 🎉\n━━━━━━━━━━━━━━━━━━━━━\n"
+            . "📋 *Seu pedido foi criado:*\n"
+            . "• *Pedido:* #{$pedido->id}\n• *Peça:* {$pedido->titulo}\n"
+            . "• *Processo:* " . $this->nomeTipoImpressao($pedido->tipo_impressao) . "\n"
+            . "• *Valor pago:* " . $this->brl((float) $sol->valor) . "\n"
+            . ($pedido->prazo ? "• *Previsão inicial:* " . $pedido->prazo->format('d/m/Y') . "\n" : '')
+            . "\n🎨 Nossa equipe já iniciou a criação da sua arte. Você receberá o link para aprovar quando estiver pronta.\n\n"
+            . "📸 Pode mandar mais fotos e referências por aqui, ou acompanhar:\n👉 {$this->siteUrl()}/rastreio?tel=" . preg_replace('/\D/', '', $destino)
+        );
+
+        return "✅ Pagamento de *S{$sol->id}* confirmado ({$this->brl((float) $sol->valor)}).\n• Pedido *#{$pedido->id}* criado — {$pedido->titulo}\n• Cliente avisado.\n👉 " . rtrim(config('app.url'), '/') . "/pedidos/{$pedido->id}";
+    }
+
+    private function ajustarValorSolicitacao(int $id, ?string $spec): string
+    {
+        if (!$this->solicitacoesDisponivel()) return "⚠️ Rode *php artisan migrate* no servidor.";
+
+        $sol = \App\Models\WhatsAppSolicitacao::find($id);
+        if (!$sol) return "❌ Solicitação *S{$id}* não encontrada.";
+        if ($sol->status !== 'aguardando_pagamento') return "⚠️ A solicitação *S{$id}* não está mais aguardando pagamento.";
+
+        $resolvido = $this->resolverValorSpec($spec);
+        if ($resolvido === null) {
+            return "⚠️ Não entendi o valor. Exemplos: *valor S{$id} 150* | *valor S{$id} combo* | *valor S{$id} arte+expressa*\n\nItens do Shop:\n" . $this->listaCodigosShop();
+        }
+        [$valor, $desc] = $resolvido;
+
+        $sol->valor = $valor;
+        $sol->itens = array_map(fn ($l) => ['nome' => $l, 'valor' => null], explode("\n• ", $desc));
+        $sol->pix_txid = 'SOL' . strtoupper(bin2hex(random_bytes(4)));
+        $sol->save();
+
+        $this->enviarCobrancaSolicitacao($sol->numero_original ?: $sol->numero, $sol);
+        return "✅ Valor de *S{$sol->id}* atualizado para *{$this->brl($valor)}* e novo Pix enviado ao cliente.";
+    }
+
+    private function descartarSolicitacao(int $id): string
+    {
+        if (!$this->solicitacoesDisponivel()) return "⚠️ Rode *php artisan migrate* no servidor.";
+
+        $sol = \App\Models\WhatsAppSolicitacao::find($id);
+        if (!$sol) return "❌ Solicitação *S{$id}* não encontrada.";
+        if ($sol->status === 'pago') return "⚠️ A solicitação *S{$id}* já está paga — não pode ser descartada.";
+
+        $sol->status = 'cancelado';
+        $sol->save();
+        return "🗑️ Solicitação *S{$id}* descartada ({$sol->titulo}).";
+    }
+
+    private function relatorioSolicitacoesAdmin(): string
+    {
+        if (!$this->solicitacoesDisponivel()) return '';
+
+        $lista = \App\Models\WhatsAppSolicitacao::where('status', 'aguardando_pagamento')->orderBy('created_at')->limit(15)->get();
+        $txt = "\n🧾 *Solicitações aguardando pagamento ({$lista->count()})*\n";
+        if ($lista->isEmpty()) return $txt . "  ✅ Nenhuma\n";
+
+        foreach ($lista as $s) {
+            $dias = (int) $s->created_at->diffInDays(now());
+            $txt .= "  • *S{$s->id}* {$s->titulo} — {$this->brl((float) $s->valor)} — " . ($s->nome ?? 'Cliente')
+                . ($s->comprovante_em ? ' 🧾 *comprovante enviado*' : '') . ($dias >= 1 ? " ⏰ {$dias}d" : '') . "\n"
+                . "    ➜ *pago S{$s->id}*  |  *descartar S{$s->id}*\n";
+        }
+        return $txt;
     }
 }

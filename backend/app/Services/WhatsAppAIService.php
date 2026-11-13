@@ -422,7 +422,7 @@ class WhatsAppAIService
         try {
             $mensagem = trim($mensagem);
 
-            if (empty($mensagem) && empty($midiaInfo)) {
+            if ($mensagem === '' && empty($midiaInfo)) {
                 return;
             }
 
@@ -500,6 +500,10 @@ class WhatsAppAIService
 
             // FOTO/DOCUMENTO fora do fluxo: anexa ao último pedido ativo do cliente
             if (!empty($midiaInfo)) {
+                // Há Pix pendente? A imagem enviada é o comprovante de pagamento
+                if ($this->tratarComprovante($numero, $remetente)) {
+                    return;
+                }
                 if ($this->anexarMidiaAoUltimoPedido($numero, $remetente, $midiaInfo)) {
                     return;
                 }
@@ -640,7 +644,8 @@ class WhatsAppAIService
 
             // ─── LEAD / primeiro contato ───
             if (in_array($intencao, ['meus_pedidos', 'pedidos_atrasados', 'prazos_entrega', 'resumo_geral', 'pedidos_por_status'], true)) {
-                $this->responder($numero, "🔍 *Consultar pedido*\n\nNão encontrei pedidos neste número de WhatsApp.\n\n"
+                $pendentes = $this->textoSolicitacoesPendentes($numero);
+                $this->responder($numero, "🔍 *Consultar pedido*\n\n" . ($pendentes !== '' ? $pendentes . "\n" : '') . "Não encontrei pedidos criados neste número de WhatsApp.\n\n"
                     . "• Se o pedido foi feito com *outro telefone*, consulte pelo portal: {$this->siteUrl()}/rastreio\n"
                     . "• Para fazer um pedido agora, digite *1*\n"
                     . "• Para falar com a equipe, digite *5*");
@@ -1385,39 +1390,54 @@ Formato: {"intencao":"categoria","pedido_id":null,"status":null}';
             }
 
             $estado['quantidade'] = $qtd && $qtd > 0 ? (string) $qtd : 'a definir';
+
+            // Cliente direto: oferece os serviços/urgência do Shop antes de fechar o valor
+            if ($this->fluxoExigePagamento($estado, $remetente)) {
+                $extras = $this->extrasShop();
+                if (!empty($extras)) {
+                    $estado['etapa'] = 'extras';
+                    Cache::put($stateKey, $estado, now()->addMinutes(60));
+                    return $this->promptExtras($extras);
+                }
+            }
+
             $estado['etapa'] = 'observacoes';
             Cache::put($stateKey, $estado, now()->addMinutes(60));
-
-            $tipoNome = match ($estado['tipo_impressao'] ?? 'sublimacao') {
-                'sublimacao' => 'Sublimação Total',
-                'bordado'    => 'Bordado',
-                'serigrafia' => 'Serigrafia / Silk',
-                default      => 'Produção',
-            };
-            $previa = !empty($estado['obs_previa']) ? "
-_Já anotei: “" . mb_substr($estado['obs_previa'], 0, 80) . "”. Se não tiver mais nada, digite *nenhuma*._
-" : '';
-
-            return "📝 *Detalhes e observações ({$tipoNome})*
-{$previa}
-"
-                . "Descreva cores, referências e detalhes, ou *envie fotos da peça/estampa direto aqui*:
-
-"
-                . "_(Se preferir explicar depois, basta digitar *nenhuma*)_";
+            return $this->promptObservacoes($estado);
         }
 
-        // ETAPA 3: Coleta Observações / Foto e Cria o Pedido no Banco
+        // ETAPA 2.7: Extras do Shop (vetorização, mockup, entrega expressa...)
+        if ($etapa === 'extras') {
+            $extras = $this->extrasShop();
+            $txt = mb_strtolower(trim($mensagem));
+            $escolhidos = [];
+
+            if (!preg_match('/^(0|n[aã]o|nenhum[a]?|sem extras?|pular|n)$/iu', $txt)) {
+                preg_match_all('/\d+/', $txt, $mm);
+                foreach ($mm[0] as $n) {
+                    $n = (int) $n;
+                    if ($n >= 1 && $n <= count($extras)) {
+                        $escolhidos[$extras[$n - 1]['codigo']] = true;
+                    }
+                }
+                if (empty($escolhidos)) {
+                    return "➕ Responda com os *números* dos opcionais (ex: *1* ou *1 3*) ou *0* para não adicionar nada.";
+                }
+            }
+
+            $estado['extras'] = array_keys($escolhidos);
+            $estado['etapa'] = 'observacoes';
+            Cache::put($stateKey, $estado, now()->addMinutes(60));
+            return $this->promptObservacoes($estado);
+        }
+
+        // ETAPA 3: Observações / Foto → fecha o fluxo
         if ($etapa === 'observacoes') {
             $obsLower = mb_strtolower(trim($mensagem));
             $obs = ($obsLower === 'nenhuma' || $obsLower === 'nao' || $obsLower === 'não' || $obsLower === '[foto/referência enviada]') ? null : $mensagem;
 
             if ($obs === null && !empty($estado['obs_previa'])) {
                 $obs = $estado['obs_previa'];
-            }
-            if (!empty($estado['quantidade'])) {
-                $obs = trim(($obs ?? '') . "
-Quantidade estimada: " . $estado['quantidade']);
             }
 
             // Salva foto de referência enviada nesta etapa se houver
@@ -1429,7 +1449,18 @@ Quantidade estimada: " . $estado['quantidade']);
                 }
             }
 
-            // Busca ou associa à confecção correta
+            $nomeCliente = $estado['nome_cliente'] ?? $remetente['nome'] ?? 'Cliente WhatsApp';
+
+            // ── CLIENTE DIRETO: NÃO cria o pedido agora. Envia valor + Pix e só cria depois do pagamento. ──
+            if ($this->fluxoExigePagamento($estado, $remetente)) {
+                return $this->criarSolicitacaoPagamento($numero, $nomeCliente, $estado, $obs, $referenciasIniciais, $remetente);
+            }
+
+            // ── Admin / confecção parceira: cria o pedido direto (sem cobrança pelo bot) ──
+            if (!empty($estado['quantidade'])) {
+                $obs = trim(($obs ?? '') . "\nQuantidade estimada: " . $estado['quantidade']);
+            }
+
             $confeccao = null;
             if (!empty($estado['confeccao_id'])) {
                 $confeccao = Confeccao::find($estado['confeccao_id']);
@@ -1438,14 +1469,10 @@ Quantidade estimada: " . $estado['quantidade']);
                 $confeccao = $remetente['confeccao'];
             }
             if (!$confeccao) {
-                // Cliente direto: nunca atribuímos a uma confecção parceira aleatória
                 $confeccao = $this->confeccaoDireta();
             }
 
             $slaHoras = Confeccao::PLANOS[$confeccao->plano]['sla_horas'] ?? 48;
-            $prazoCalculado = now()->addHours($slaHoras);
-
-            $nomeCliente = $estado['nome_cliente'] ?? $remetente['nome'] ?? 'Cliente WhatsApp';
 
             try {
                 $dadosPedido = [
@@ -1454,43 +1481,30 @@ Quantidade estimada: " . $estado['quantidade']);
                     'tipo_impressao' => $estado['tipo_impressao'] ?? 'sublimacao',
                     'status'         => 'aguardando_briefing',
                     'observacoes'    => $obs,
-                    'prazo'          => $prazoCalculado,
+                    'prazo'          => now()->addHours($slaHoras),
                     'referencias'    => !empty($referenciasIniciais) ? $referenciasIniciais : null,
                 ];
 
-                if ($this->hasColumnSafe('pedidos', 'cliente_whatsapp')) {
-                    $dadosPedido['cliente_whatsapp'] = $numero;
+                foreach (['cliente_whatsapp', 'whatsapp_cliente'] as $col) {
+                    if ($this->hasColumnSafe('pedidos', $col)) {
+                        $dadosPedido[$col] = $numero;
+                    }
                 }
-                if ($this->hasColumnSafe('pedidos', 'whatsapp_cliente')) {
-                    $dadosPedido['whatsapp_cliente'] = $numero;
-                }
-
-                if ($this->hasColumnSafe('pedidos', 'cliente_nome')) {
-                    $dadosPedido['cliente_nome'] = $nomeCliente;
-                }
-                if ($this->hasColumnSafe('pedidos', 'nome_cliente')) {
-                    $dadosPedido['nome_cliente'] = $nomeCliente;
-                }
-
-                // Cliente direto (sem confecção parceira): produção só depois de orçamento + Pix pago
-                $exigePagamento = $confeccao->nome === self::NOME_CONFECCAO_DIRETA && $this->pagamentoDisponivel();
-                if ($exigePagamento) {
-                    $dadosPedido['pagamento_status'] = 'aguardando_orcamento';
+                foreach (['cliente_nome', 'nome_cliente'] as $col) {
+                    if ($this->hasColumnSafe('pedidos', $col)) {
+                        $dadosPedido[$col] = $nomeCliente;
+                    }
                 }
 
                 $pedido = Pedido::create($dadosPedido);
 
-                // Incrementa contador da confecção
                 if (method_exists($confeccao, 'incrementarArteUsada') && $confeccao->nome !== self::NOME_CONFECCAO_DIRETA) {
                     $confeccao->incrementarArteUsada();
                 }
 
                 Cache::forget($stateKey);
-
-                // Salva em cache o último pedido do usuário para anexar fotos subsequentes
                 Cache::put('wa_ultimo_pedido_' . $numero, $pedido->id, now()->addDays(2));
 
-                // Funil de leads: contato convertido em pedido
                 if ($this->contatosDisponivel()) {
                     try {
                         $this->atualizarContato($numero, ['status' => 'convertido', 'nome' => $nomeCliente]);
@@ -1506,14 +1520,8 @@ Quantidade estimada: " . $estado['quantidade']);
                 throw $e;
             }
 
-            $tipoNome = match ($pedido->tipo_impressao) {
-                'sublimacao' => 'Sublimação Total',
-                'bordado'    => 'Bordado',
-                'serigrafia' => 'Serigrafia / Silk',
-                default      => $pedido->tipo_impressao,
-            };
+            $tipoNome = $this->nomeTipoImpressao($pedido->tipo_impressao);
 
-            // Notifica TODOS os admins no WhatsApp
             $appUrl = rtrim(config('app.url'), '/');
             $perfilTxt = match ($remetente['tipo']) {
                 'confeccao' => 'Confecção parceira',
@@ -1521,35 +1529,23 @@ Quantidade estimada: " . $estado['quantidade']);
                 'admin'     => 'Admin',
                 default     => 'Novo cliente (1º contato)',
             };
-            $this->notificarAdmins("🚨 *Novo Pedido via WhatsApp Bot!*
-"
-                . "━━━━━━━━━━━━━━━━━━━━━
-"
-                . "• *Pedido:* #{$pedido->id} — {$pedido->titulo}
-"
-                . "• *Cliente:* {$nomeCliente} ({$perfilTxt})
-"
-                . "• *WhatsApp:* " . $this->formatarTelefone($numero) . " — " . $this->linkWa($numero) . "
-"
-                . "• *Processo:* {$tipoNome}
-"
-                . ($obs ? "• *Obs:* {$obs}
-" : "")
-                . (!empty($referenciasIniciais) ? "• *Fotos anexadas:* " . count($referenciasIniciais) . " arquivo(s)
-" : "")
-                . (!empty($exigePagamento)
-                    ? "\n💰 *Envie o orçamento + Pix ao cliente:*\n➜ *valor {$pedido->id}* (" . (($sug = $this->itemArtePadrao()) ? $this->brl($sug['valor']) . ' — preço do Shop' : 'defina o valor') . ")\n➜ ou *valor {$pedido->id} 150* (valor livre)\n"
-                    : '')
+            $this->notificarAdmins("🚨 *Novo Pedido via WhatsApp Bot!*\n"
+                . "━━━━━━━━━━━━━━━━━━━━━\n"
+                . "• *Pedido:* #{$pedido->id} — {$pedido->titulo}\n"
+                . "• *Cliente:* {$nomeCliente} ({$perfilTxt})\n"
+                . "• *WhatsApp:* " . $this->formatarTelefone($numero) . " — " . $this->linkWa($numero) . "\n"
+                . "• *Processo:* {$tipoNome}\n"
+                . ($obs ? "• *Obs:* {$obs}\n" : "")
+                . (!empty($referenciasIniciais) ? "• *Fotos anexadas:* " . count($referenciasIniciais) . " arquivo(s)\n" : "")
                 . "\n👉 Painel: {$appUrl}/pedidos/{$pedido->id}");
 
             $prazoTxt = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : null;
             $urlRastreio = rtrim(config('app.url'), '/') . "/rastreio?tel={$numero}";
-
             $avisoFoto = !empty($referenciasIniciais)
                 ? "📸 *Foto de referência anexada com sucesso ao pedido!* ✅\n\n"
                 : "";
 
-            $msgFinal = "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
+            return "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
                 . "━━━━━━━━━━━━━━━━━━━━━\n\n"
                 . "📋 *Resumo do Pedido:*\n"
                 . "• *Pedido:* #{$pedido->id}\n"
@@ -1559,27 +1555,12 @@ Quantidade estimada: " . $estado['quantidade']);
                 . "• *Status:* 📝 Aguardando Briefing / Criação\n"
                 . ($obs ? "• *Obs:* {$obs}\n" : "")
                 . "\n" . $avisoFoto
-                . (!empty($exigePagamento)
-                    ? "💰 *Próximo passo:* nossa equipe vai preparar o *orçamento* e enviar o valor e o *Pix* aqui mesmo, neste WhatsApp.\n🎨 A criação da arte começa assim que o pagamento for confirmado.\n\n"
-                    : "🎨 Nossa equipe de designers já recebeu seus dados e vai iniciar sua arte!\n\n")
+                . "🎨 Nossa equipe de designers já recebeu seus dados e vai iniciar sua arte!\n\n"
                 . "📸 *Deseja enviar mais fotos, logos ou referências da estampa?*\n"
                 . "• Você pode mandar as fotos diretamente aqui no WhatsApp 💬\n"
                 . "• Ou anexar fotos através do link do seu pedido:\n"
                 . "👉 {$urlRastreio} 🌐\n\n"
                 . "_Muito obrigado pela preferência! Se precisar de algo, é só mandar mensagem._";
-
-            // Modo automático (BOT_ORCAMENTO_AUTOMATICO=true): envia o orçamento com o preço do Shop e o Pix na hora
-            if (!empty($exigePagamento) && config('services.bot.orcamento_automatico') && $this->itemArtePadrao()) {
-                $this->responder($numero, $msgFinal);
-                try {
-                    $this->notificarAdmins($this->definirValorPedido($pedido->id, null, true));
-                } catch (\Throwable $ea) {
-                    Log::warning('WhatsApp Bot: orçamento automático falhou: ' . $ea->getMessage());
-                }
-                return '';
-            }
-
-            return $msgFinal;
         }
 
         Cache::forget($stateKey);
@@ -1708,6 +1689,11 @@ Quantidade estimada: " . $estado['quantidade']);
     {
         $pedidos = $this->buscarPedidosPorNumero($numero);
         $grupos = $this->buscarGruposPorNumero($numero);
+
+        $pendentesPgto = $this->textoSolicitacoesPendentes($numero);
+        if ($pedidos->isEmpty() && $grupos->isEmpty() && $pendentesPgto !== '') {
+            return "📦 *Seus Pedidos — Camiseta Design*\n━━━━━━━━━━━━━━━━━━━━━\n\n" . $pendentesPgto;
+        }
 
         if ($pedidos->isEmpty() && $grupos->isEmpty()) {
             return "🔍 *Seus Pedidos*\n\nNenhum pedido encontrado vinculado ao seu número de WhatsApp.\n\n"

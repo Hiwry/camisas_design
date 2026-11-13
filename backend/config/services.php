@@ -37,11 +37,6 @@ return [
 
     'site_url' => env('SITE_URL', 'https://camisetadesign.com.br'),
 
-    'bot' => [
-        // true = após criar o pedido, o bot já envia orçamento (preço do Shop) + Pix ao cliente direto
-        'orcamento_automatico' => (bool) env('BOT_ORCAMENTO_AUTOMATICO', false),
-    ],
-
     'evolution' => [
         'url'          => env('EVOLUTION_API_URL', 'http://localhost:8080'),
         'key'          => env('EVOLUTION_API_KEY'),
