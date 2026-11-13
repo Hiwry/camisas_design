@@ -80,6 +80,10 @@ trait AtendimentoWhatsApp
     /** Envia respeitando o limite do WhatsApp (quebra em partes por linha) */
     private function responder(string $numero, string $texto): void
     {
+        if (trim($texto) === '') {
+            return;
+        }
+
         $limite = 3500;
         if (mb_strlen($texto) <= $limite) {
             $this->wa->enviarTexto($numero, $texto);
@@ -334,7 +338,8 @@ trait AtendimentoWhatsApp
             . "8️⃣ *Leads* — primeiros contatos\n"
             . "9️⃣ *Orçamentos* — definir valor e confirmar Pix\n\n"
             . "🛠️ *Comandos:*\n"
-            . "• *valor 42 150* — envia orçamento + Pix ao cliente do pedido 42\n"
+            . "• *valor 42* — orçamento + Pix com o preço do Shop (1 arte)\n"
+            . "• *valor 42 150* — valor livre | *valor 42 arte+expressa* — soma itens do Shop\n"
             . "• *pago 42* — confirma o Pix e libera a produção\n"
             . "• *buscar* nome ou número\n"
             . "• *enviar* 82999999999 sua mensagem _(o bot pausa naquele contato)_\n"
@@ -348,14 +353,14 @@ trait AtendimentoWhatsApp
 
     private function respostaOrcamento(): string
     {
-        return "💰 *Orçamento e como funciona*\n"
+        $precos = $this->listaPrecosShop();
+
+        return "💰 *Valores — Camiseta Design*\n"
             . "━━━━━━━━━━━━━━━━━━━━━\n"
-            . "O valor depende do *modelo da peça, da técnica (sublimação, bordado ou serigrafia) e da quantidade*.\n\n"
-            . "Para agilizar, me diga:\n"
-            . "• Qual peça (camisa, polo, fardamento...)\n"
-            . "• Quantidade aproximada\n"
-            . "• Se já tem logo/referência (pode enviar a foto aqui)\n\n"
-            . "👉 Digite *1* para registrar seu pedido agora e nossa equipe retorna com o valor, ou *5* para falar com um atendente.";
+            . ($precos !== '' ? $precos . "\n\n" : '')
+            . "💳 Pagamento via *Pix*. A criação da arte começa assim que o pagamento é confirmado.\n"
+            . "ℹ️ Pedidos com várias peças, ajustes ou detalhes especiais podem ter o valor confirmado pela equipe.\n\n"
+            . "👉 Digite *1* para fazer seu pedido agora, ou *5* para falar com um atendente.";
     }
 
     private function respostaPortfolio(): string
@@ -827,7 +832,7 @@ trait AtendimentoWhatsApp
     }
 
     /** Mensagens de cobrança Pix para o cliente: [explicação, código copia-e-cola] */
-    private function mensagensPixCliente(Pedido $p): array
+    private function mensagensPixCliente(Pedido $p, ?string $itens = null): array
     {
         $pix = app(\App\Services\PixService::class);
         $payload = $pix->gerarPayload((float) $p->valor, $p->pix_txid ?: ('PED' . $p->id));
@@ -836,6 +841,7 @@ trait AtendimentoWhatsApp
         $texto = "💰 *Orçamento do seu pedido #{$p->id}*" . ($nome ? " — {$nome}" : '') . "\n"
             . "━━━━━━━━━━━━━━━━━━━━━\n"
             . "• *Peça:* {$p->titulo}\n"
+            . ($itens ? "• *Itens:* {$itens}\n" : '')
             . "• *Valor:* *" . $this->brl((float) $p->valor) . "*\n\n"
             . "Para iniciarmos a produção da sua arte, faça o pagamento via *Pix*:\n"
             . "🔑 *Chave Pix (celular):* " . $this->formatarTelefone(config('services.pix.chave')) . "\n"
@@ -846,9 +852,9 @@ trait AtendimentoWhatsApp
         return [$texto, $payload];
     }
 
-    private function enviarCobrancaPix(string $numero, Pedido $p): void
+    private function enviarCobrancaPix(string $numero, Pedido $p, ?string $itens = null): void
     {
-        [$texto, $payload] = $this->mensagensPixCliente($p);
+        [$texto, $payload] = $this->mensagensPixCliente($p, $itens);
         $this->wa->enviarTexto($numero, $texto);
         $this->wa->enviarTexto($numero, $payload);
     }
@@ -880,9 +886,9 @@ trait AtendimentoWhatsApp
 
     private function comandoPagamentoAdmin(string $mensagem): ?string
     {
-        // valor 42 150   |   orçamento 42 R$ 1.500,00
-        if (preg_match('/^\s*(?:valor|or[cç]amento)\s+#?(\d{1,7})\s+(?:r\$\s*)?(\d[\d.]*(?:,\d{1,2})?)\s*$/iu', $mensagem, $m)) {
-            return $this->definirValorPedido((int) $m[1], $m[2]);
+        // valor 42  (arte padrão do Shop) | valor 42 150 | valor 42 arte+expressa | orçamento 42 combo
+        if (preg_match('/^\s*(?:valor|or[cç]amento)\s+#?(\d{1,7})(?:\s+(.+?))?\s*$/iu', $mensagem, $m)) {
+            return $this->definirValorPedido((int) $m[1], $m[2] ?? null);
         }
 
         // pago 42  |  confirmar 42
@@ -898,7 +904,7 @@ trait AtendimentoWhatsApp
         return null;
     }
 
-    private function definirValorPedido(int $id, string $valorTxt): string
+    private function definirValorPedido(int $id, ?string $valorTxt, bool $automatico = false): string
     {
         if (!$this->pagamentoDisponivel()) {
             return "⚠️ Rode *php artisan migrate* no servidor para habilitar o orçamento/Pix.";
@@ -909,8 +915,16 @@ trait AtendimentoWhatsApp
         if ($pedido->status === 'cancelado') return "❌ O pedido *#{$id}* está cancelado.";
         if ($pedido->pagamento_status === 'pago') return "⚠️ O pedido *#{$id}* já está *pago* ({$this->brl((float) $pedido->valor)}). Não alterei o valor.";
 
-        $valor = $this->parseValor($valorTxt);
-        if ($valor === null) return "⚠️ Valor inválido. Exemplo: *valor {$id} 150* ou *valor {$id} 1.250,50*";
+        $resolvido = $this->resolverValorSpec($valorTxt);
+        if ($resolvido === null) {
+            return "⚠️ Não entendi o valor. Exemplos:\n"
+                . "• *valor {$id}* — 1 arte do Shop\n"
+                . "• *valor {$id} 150* — valor livre\n"
+                . "• *valor {$id} arte+expressa* — soma itens do Shop\n"
+                . "• *valor {$id} combo* / *pack* / *vetor* / *mockup*\n\n"
+                . "Itens do Shop:\n" . $this->listaCodigosShop();
+        }
+        [$valor, $descricaoItens] = $resolvido;
 
         $destino = $this->whatsappDoPedido($pedido);
         if (!$destino) return "⚠️ O pedido *#{$id}* não tem WhatsApp do cliente cadastrado. Edite o pedido no painel e tente de novo.";
@@ -921,11 +935,14 @@ trait AtendimentoWhatsApp
         $pedido->orcamento_enviado_em = now();
         $pedido->save();
 
-        $this->enviarCobrancaPix($destino, $pedido);
+        $this->enviarCobrancaPix($destino, $pedido, $descricaoItens);
 
         $cli = $pedido->nome_cliente ?? $pedido->cliente_nome ?? 'cliente';
-        return "✅ *Orçamento enviado!*\n• Pedido #{$pedido->id} — {$pedido->titulo}\n• Cliente: {$cli} (" . $this->formatarTelefone($destino) . ")\n• Valor: *{$this->brl($valor)}*\n\n"
-            . "Quando o Pix cair na sua conta, confirme com: *pago {$pedido->id}*";
+        return ($automatico ? "🤖 *Orçamento enviado automaticamente (valores do Shop)*\n" : "✅ *Orçamento enviado!*\n")
+            . "• Pedido #{$pedido->id} — {$pedido->titulo}\n• Cliente: {$cli} (" . $this->formatarTelefone($destino) . ")\n"
+            . "• {$descricaoItens}\n• Total: *{$this->brl($valor)}*\n\n"
+            . "Quando o Pix cair na sua conta, confirme com: *pago {$pedido->id}*"
+            . ($automatico ? "\nPara trocar o valor: *valor {$pedido->id} 150*" : '');
     }
 
     private function confirmarPagamentoPedido(int $id): string
@@ -977,7 +994,7 @@ trait AtendimentoWhatsApp
         if ($sem->isEmpty()) $txt .= "  ✅ Nenhum\n";
         foreach ($sem as $p) {
             $cli = $p->nome_cliente ?? $p->cliente_nome ?? 'Cliente';
-            $txt .= "  • #{$p->id} {$p->titulo} — {$cli} (" . $this->formatarTelefone($this->whatsappDoPedido($p)) . ")\n    ➜ *valor {$p->id} 150*\n";
+            $txt .= "  • #{$p->id} {$p->titulo} — {$cli} (" . $this->formatarTelefone($this->whatsappDoPedido($p)) . ")\n    ➜ *valor {$p->id}* (Shop) ou *valor {$p->id} 150*\n";
         }
 
         $txt .= "\n💳 *Aguardando pagamento ({$pag->count()})*\n";
@@ -989,5 +1006,177 @@ trait AtendimentoWhatsApp
         }
 
         return rtrim($txt);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PREÇOS DO SHOP (fonte única de valores: tabela shop_itens)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Itens ativos do Shop, normalizados. Lê do banco (o que você edita no painel)
+     * e usa o catálogo padrão do sistema se a tabela estiver vazia/indisponível.
+     *
+     * @return array<int, array{codigo:string,nome:string,categoria:string,valor:float,valor_original:float,quantidade:int,entrega:string}>
+     */
+    private function itensShop(): array
+    {
+        $itens = [];
+
+        try {
+            if (Schema::hasTable('shop_itens')) {
+                foreach (\App\Models\ShopItem::where('ativo', true)->orderBy('ordem')->orderBy('id')->get() as $i) {
+                    $itens[] = [
+                        'codigo'         => (string) $i->codigo,
+                        'nome'           => (string) $i->nome,
+                        'categoria'      => (string) $i->categoria,
+                        'valor'          => (float) $i->valor,
+                        'valor_original' => (float) ($i->valor_original ?: $i->valor),
+                        'quantidade'     => (int) $i->quantidade,
+                        'entrega'        => (string) $i->entrega_sla,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp Bot: falha ao ler shop_itens: ' . $e->getMessage());
+        }
+
+        if (empty($itens)) {
+            foreach (\App\Http\Controllers\Api\ShopController::catalogo() as $c) {
+                $itens[] = [
+                    'codigo'         => (string) $c['id'],
+                    'nome'           => (string) $c['nome'],
+                    'categoria'      => (string) $c['categoria'],
+                    'valor'          => (float) $c['valor'],
+                    'valor_original' => (float) ($c['valor_original'] ?? $c['valor']),
+                    'quantidade'     => (int) ($c['quantidade'] ?? 1),
+                    'entrega'        => (string) ($c['entrega_sla'] ?? ''),
+                ];
+            }
+        }
+
+        return $itens;
+    }
+
+    private function itemShopPorCodigo(string $codigo): ?array
+    {
+        $alvo = mb_strtolower(trim($codigo));
+        $aliases = [
+            'arte' => 'arte_avulsa_1', 'arte1' => 'arte_avulsa_1', '1arte' => 'arte_avulsa_1',
+            'combo' => 'arte_avulsa_3', 'arte3' => 'arte_avulsa_3', '3artes' => 'arte_avulsa_3',
+            'pack' => 'arte_avulsa_5', 'arte5' => 'arte_avulsa_5', '5artes' => 'arte_avulsa_5',
+            'vetor' => 'vetorizacao_logo', 'vetorizacao' => 'vetorizacao_logo', 'vetorização' => 'vetorizacao_logo', 'logo' => 'vetorizacao_logo',
+            'mockup' => 'mockup_3d', 'mock' => 'mockup_3d', '3d' => 'mockup_3d',
+            'expressa' => 'taxa_expressa', 'urgente' => 'taxa_expressa', 'urgencia' => 'taxa_expressa', 'urgência' => 'taxa_expressa', 'express' => 'taxa_expressa',
+        ];
+        $alvo = $aliases[$alvo] ?? $alvo;
+
+        foreach ($this->itensShop() as $i) {
+            if (mb_strtolower($i['codigo']) === $alvo) {
+                return $i;
+            }
+        }
+        return null;
+    }
+
+    /** Preço padrão de uma arte avulsa (1 unidade) segundo o Shop */
+    private function itemArtePadrao(): ?array
+    {
+        $porCodigo = $this->itemShopPorCodigo('arte_avulsa_1');
+        if ($porCodigo) return $porCodigo;
+
+        $artes = array_filter($this->itensShop(), fn ($i) => $i['categoria'] === 'artes' && $i['quantidade'] === 1);
+        return empty($artes) ? null : array_values($artes)[0];
+    }
+
+    /**
+     * Interpreta o que o admin digitou depois do número do pedido:
+     *  - vazio                → 1 arte avulsa do Shop
+     *  - 150 / 1.250,50       → valor livre
+     *  - arte_avulsa_3        → item do Shop (pelo código ou apelido: arte, combo, pack, vetor, mockup, expressa)
+     *  - arte+expressa+50     → soma de itens e/ou valores
+     * Retorna [valor, descrição] ou null se algo não for reconhecido.
+     */
+    private function resolverValorSpec(?string $spec): ?array
+    {
+        $spec = trim((string) $spec);
+
+        if ($spec === '') {
+            $arte = $this->itemArtePadrao();
+            return $arte ? [$arte['valor'], "{$arte['nome']} — " . $this->brl($arte['valor'])] : null;
+        }
+
+        $total = 0.0;
+        $partes = [];
+
+        foreach (preg_split('/\s*\+\s*/', $spec) as $token) {
+            $token = trim($token);
+            if ($token === '') continue;
+
+            $numero = $this->parseValor($token);
+            if ($numero !== null) {
+                $total += $numero;
+                $partes[] = 'Valor combinado — ' . $this->brl($numero);
+                continue;
+            }
+
+            $item = $this->itemShopPorCodigo($token);
+            if (!$item) {
+                return null;
+            }
+            $total += $item['valor'];
+            $partes[] = "{$item['nome']} — " . $this->brl($item['valor']);
+        }
+
+        if ($total <= 0) return null;
+
+        return [round($total, 2), implode("\n• ", $partes)];
+    }
+
+    /** Tabela de preços para clientes, lida do Shop */
+    private function listaPrecosShop(): string
+    {
+        $secoes = [
+            'artes'    => '🎨 *Criação de arte*',
+            'servicos' => '🛠️ *Serviços*',
+            'urgencia' => '⚡ *Urgência*',
+        ];
+
+        $porCategoria = [];
+        foreach ($this->itensShop() as $i) {
+            if (isset($secoes[$i['categoria']])) {
+                $porCategoria[$i['categoria']][] = $i;
+            }
+        }
+
+        $txt = '';
+        foreach ($secoes as $cat => $titulo) {
+            if (empty($porCategoria[$cat])) continue;
+            $txt .= "{$titulo}\n";
+            foreach ($porCategoria[$cat] as $i) {
+                $linha = "• {$i['nome']}: *" . $this->brl($i['valor']) . '*';
+                if ($i['valor_original'] > $i['valor']) {
+                    $linha .= ' _(de ' . $this->brl($i['valor_original']) . ')_';
+                }
+                if ($cat !== 'artes' && $i['entrega'] !== '') {
+                    $linha .= " — {$i['entrega']}";
+                }
+                $txt .= $linha . "\n";
+            }
+            $txt .= "\n";
+        }
+
+        return rtrim($txt);
+    }
+
+    /** Lista curta "código — nome — preço" para ajuda do admin */
+    private function listaCodigosShop(): string
+    {
+        $linhas = [];
+        foreach ($this->itensShop() as $i) {
+            if ($i['categoria'] === 'ia') continue;
+            $linhas[] = "• {$i['codigo']} — " . $this->brl($i['valor']);
+        }
+        return implode("
+", $linhas);
     }
 }

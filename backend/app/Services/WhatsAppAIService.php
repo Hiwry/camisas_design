@@ -1537,7 +1537,9 @@ Quantidade estimada: " . $estado['quantidade']);
 " : "")
                 . (!empty($referenciasIniciais) ? "• *Fotos anexadas:* " . count($referenciasIniciais) . " arquivo(s)
 " : "")
-                . (!empty($exigePagamento) ? "\n💰 *Defina o valor e envie o Pix ao cliente:*\n➜ *valor {$pedido->id} 150*\n" : '')
+                . (!empty($exigePagamento)
+                    ? "\n💰 *Envie o orçamento + Pix ao cliente:*\n➜ *valor {$pedido->id}* (" . (($sug = $this->itemArtePadrao()) ? $this->brl($sug['valor']) . ' — preço do Shop' : 'defina o valor') . ")\n➜ ou *valor {$pedido->id} 150* (valor livre)\n"
+                    : '')
                 . "\n👉 Painel: {$appUrl}/pedidos/{$pedido->id}");
 
             $prazoTxt = $pedido->prazo ? $pedido->prazo->format('d/m/Y') : null;
@@ -1547,7 +1549,7 @@ Quantidade estimada: " . $estado['quantidade']);
                 ? "📸 *Foto de referência anexada com sucesso ao pedido!* ✅\n\n"
                 : "";
 
-            return "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
+            $msgFinal = "🎉 *Excelente, {$nomeCliente}! Seu pedido foi criado com sucesso!* 👕🎨\n"
                 . "━━━━━━━━━━━━━━━━━━━━━\n\n"
                 . "📋 *Resumo do Pedido:*\n"
                 . "• *Pedido:* #{$pedido->id}\n"
@@ -1565,6 +1567,19 @@ Quantidade estimada: " . $estado['quantidade']);
                 . "• Ou anexar fotos através do link do seu pedido:\n"
                 . "👉 {$urlRastreio} 🌐\n\n"
                 . "_Muito obrigado pela preferência! Se precisar de algo, é só mandar mensagem._";
+
+            // Modo automático (BOT_ORCAMENTO_AUTOMATICO=true): envia o orçamento com o preço do Shop e o Pix na hora
+            if (!empty($exigePagamento) && config('services.bot.orcamento_automatico') && $this->itemArtePadrao()) {
+                $this->responder($numero, $msgFinal);
+                try {
+                    $this->notificarAdmins($this->definirValorPedido($pedido->id, null, true));
+                } catch (\Throwable $ea) {
+                    Log::warning('WhatsApp Bot: orçamento automático falhou: ' . $ea->getMessage());
+                }
+                return '';
+            }
+
+            return $msgFinal;
         }
 
         Cache::forget($stateKey);
