@@ -10,6 +10,7 @@ import ConfeccoesPage from '@/pages/ConfeccoesPage'
 import AprovacaoPublica from '@/pages/AprovacaoPublica'
 import RevisaoArtePage from '@/pages/RevisaoArtePage'
 import WhatsAppPage from '@/pages/WhatsAppPage'
+import OtimizadorCortePage from '@/pages/OtimizadorCortePage'
 import ShopPage from '@/pages/ShopPage'
 import GerenciarShopPage from '@/pages/GerenciarShopPage'
 import PortfolioPage from '@/pages/PortfolioPage'
@@ -100,6 +101,14 @@ export default function App() {
             element={
               <AdminRoute>
                 <WhatsAppPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/otimizador-corte"
+            element={
+              <AdminRoute>
+                <OtimizadorCortePage />
               </AdminRoute>
             }
           />
