@@ -18,3 +18,6 @@ Artisan::command('confeccoes:reset-mensal', function () {
 
 // Reset mensal de artes das confecções — rodar via cron todo dia 1 às 00:00
 Schedule::command('confeccoes:reset-mensal')->monthlyOn(1, '00:00');
+
+// Prospecção: tenta enviar 1 mensagem por minuto (respeita horário, limite e intervalo aleatório)
+Schedule::command('prospeccao:enviar')->everyMinute()->withoutOverlapping();

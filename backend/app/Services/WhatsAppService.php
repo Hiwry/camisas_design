@@ -11,11 +11,42 @@ class WhatsAppService
     private string $apiKey;
     private string $instance;
 
-    public function __construct()
+    /** @param string|null $instance Nome da instância Evolution. Null = instância principal do sistema. */
+    public function __construct(?string $instance = null)
     {
         $this->baseUrl  = rtrim(config('services.evolution.url'), '/');
         $this->apiKey   = config('services.evolution.key', '');
-        $this->instance = config('services.evolution.instance', 'camiseta-design');
+        $this->instance = $instance ?: config('services.evolution.instance', 'camiseta-design');
+    }
+
+    /** Instância dedicada à prospecção (número separado do atendimento). */
+    public static function prospeccao(): self
+    {
+        return new self(config('prospeccao.instance'));
+    }
+
+    /**
+     * Verifica se os números têm WhatsApp (Evolution v2: POST /chat/whatsappNumbers).
+     * Retorna [numero => bool]. Em falha de rede retorna null (não assume nada).
+     */
+    public function verificarWhatsApp(array $numeros): ?array
+    {
+        try {
+            $res = $this->requisicao('POST', "/chat/whatsappNumbers/{$this->instance}", [
+                'numbers' => array_values($numeros),
+            ]);
+            $out = [];
+            foreach ($res as $item) {
+                $n = preg_replace('/[^0-9]/', '', (string) ($item['number'] ?? explode('@', $item['jid'] ?? '')[0]));
+                if ($n !== '') {
+                    $out[$n] = (bool) ($item['exists'] ?? false);
+                }
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp verificarWhatsApp erro: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public function configurado(): bool

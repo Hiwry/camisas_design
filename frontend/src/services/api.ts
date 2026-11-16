@@ -127,6 +127,91 @@ export const whatsappService = {
     api.post('/whatsapp/enviar-teste', { numero, mensagem }).then(r => r.data),
 }
 
+// ─── Prospecção (CRM de confecções novas) ──────────────────────────────────
+
+export interface Prospecto {
+  id: number
+  nome: string | null
+  cidade: string | null
+  uf: string | null
+  telefone: string | null
+  data_abertura: string | null
+  status: string
+  etapa: number
+  ultimo_envio_em: string | null
+  respondeu_em: string | null
+  notas: string | null
+  origem: string
+}
+
+export interface ProspeccaoConfig {
+  ativo: boolean
+  meu_nome: string
+  limite_max_dia: number
+  limite_inicial_dia: number
+  aquecimento_passo: number
+  hora_inicio: number
+  hora_fim: number
+  intervalo_min_seg: number
+  intervalo_max_seg: number
+  dias_followup_1: number
+  dias_followup_2: number
+}
+
+export interface ProspeccaoResumo {
+  funil: Record<string, number>
+  total: number
+  enviados_hoje: number
+  limite_hoje: number
+  dentro_horario: boolean
+  config: ProspeccaoConfig
+  por_modelo: { id: number; nome: string; enviados: number; respostas: number; taxa: number | null }[]
+}
+
+export interface ProspeccaoFilaItem {
+  id: number
+  nome: string | null
+  cidade: string | null
+  uf: string | null
+  telefone: string
+  tipo: 'inicial' | 'followup1' | 'followup2'
+  modelo: string | null
+  mensagem: string | null
+}
+
+export interface ProspeccaoModelo {
+  id: number
+  tipo: 'inicial' | 'followup1' | 'followup2'
+  nome: string
+  texto: string
+  ativo: boolean
+}
+
+export const prospeccaoService = {
+  resumo: (): Promise<ProspeccaoResumo> => api.get('/prospeccao/resumo').then(r => r.data),
+  fila: (limite = 20): Promise<{ fila: ProspeccaoFilaItem[]; enviados_hoje: number; limite_hoje: number }> =>
+    api.get('/prospeccao/fila', { params: { limite } }).then(r => r.data),
+  listar: (params: Record<string, unknown>) =>
+    api.get('/prospeccao/prospectos', { params }).then(r => r.data),
+  criar: (data: Record<string, unknown>) => api.post('/prospeccao/prospectos', data).then(r => r.data),
+  aprovar: (data: { acao: 'aprovar' | 'rejeitar'; ids?: number[]; todos?: boolean }) =>
+    api.post('/prospeccao/prospectos/aprovar', data).then(r => r.data),
+  importarLista: (lista: string) =>
+    api.post('/prospeccao/prospectos/importar-lista', { lista }).then(r => r.data),
+  atualizar: (id: number, data: Record<string, unknown>) =>
+    api.patch(`/prospeccao/prospectos/${id}`, data).then(r => r.data),
+  excluir: (id: number) => api.delete(`/prospeccao/prospectos/${id}`).then(r => r.data),
+  mensagens: (id: number) => api.get(`/prospeccao/prospectos/${id}/mensagens`).then(r => r.data),
+  modelos: (): Promise<ProspeccaoModelo[]> => api.get('/prospeccao/modelos').then(r => r.data),
+  atualizarModelo: (id: number, data: Partial<ProspeccaoModelo>) =>
+    api.put(`/prospeccao/modelos/${id}`, data).then(r => r.data),
+  config: (data: Partial<ProspeccaoConfig>) => api.put('/prospeccao/config', data).then(r => r.data),
+  waStatus: () => api.get('/prospeccao/whatsapp/status').then(r => r.data),
+  waQrcode: () => api.get('/prospeccao/whatsapp/qrcode').then(r => r.data),
+  waDesconectar: () => api.post('/prospeccao/whatsapp/desconectar').then(r => r.data),
+  waWebhook: () => api.post('/prospeccao/whatsapp/configurar-webhook').then(r => r.data),
+}
+
 export const revisaoService = {
   comparar: (formData: FormData) =>
     api.post('/revisao/comparar', formData, {

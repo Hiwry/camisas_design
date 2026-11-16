@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\PortfolioController;
 use App\Http\Controllers\RevisaoArteController;
 use App\Http\Controllers\RevisaoImagemController;
 use App\Http\Controllers\WhatsAppController;
+use App\Http\Controllers\ProspeccaoController;
 use App\Http\Controllers\Api\Publico\RastreioController;
 use App\Http\Controllers\Api\GrupoController;
 use App\Http\Controllers\Api\GrupoPublicoController;
@@ -44,8 +45,11 @@ Route::middleware('throttle:5,1')->group(function () {
 // Webhook público da Evolution API
 Route::middleware('throttle:120,1')->post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
 
+// Webhook público da instância de prospecção (respostas dos contatos)
+Route::middleware('throttle:120,1')->post('/prospeccao/webhook', [ProspeccaoController::class, 'webhook']);
+
 // Portfólio / Catálogo público de trabalhos
-Route::get('/portfolio', [PortfolioController::class, 'index']);
+Route::get('/portfolio',[PortfolioController::class, 'index']);
 Route::get('/portfolio-categorias', [PortfolioController::class, 'listarCategorias']);
 Route::get('/portfolio/{portfolio}', [PortfolioController::class, 'show']);
 Route::middleware('throttle:30,1')->post('/portfolio/{portfolio}/curtir', [PortfolioController::class, 'curtir']);
@@ -179,6 +183,26 @@ Route::middleware(['auth:sanctum', 'ativo'])->group(function () {
         Route::post('/whatsapp/enviar-teste',          [WhatsAppController::class, 'enviarTeste']);
         Route::post('/whatsapp/configurar-webhook',    [WhatsAppController::class, 'configurarWebhook']);
         Route::get('/whatsapp/webhook-status',         [WhatsAppController::class, 'webhookStatus']);
+
+        // Prospecção (CRM de confecções novas — exclusivo Admin)
+        Route::prefix('prospeccao')->group(function () {
+            Route::get('/resumo',                          [ProspeccaoController::class, 'resumo']);
+            Route::get('/fila',                            [ProspeccaoController::class, 'fila']);
+            Route::get('/prospectos',                      [ProspeccaoController::class, 'listar']);
+            Route::post('/prospectos',                     [ProspeccaoController::class, 'criar']);
+            Route::post('/prospectos/importar-lista',      [ProspeccaoController::class, 'importarLista']);
+            Route::post('/prospectos/aprovar',             [ProspeccaoController::class, 'aprovar']);
+            Route::patch('/prospectos/{prospecto}',        [ProspeccaoController::class, 'atualizar']);
+            Route::delete('/prospectos/{prospecto}',       [ProspeccaoController::class, 'excluir']);
+            Route::get('/prospectos/{prospecto}/mensagens', [ProspeccaoController::class, 'mensagens']);
+            Route::get('/modelos',                         [ProspeccaoController::class, 'modelos']);
+            Route::put('/modelos/{modelo}',                [ProspeccaoController::class, 'atualizarModelo']);
+            Route::put('/config',                          [ProspeccaoController::class, 'atualizarConfig']);
+            Route::get('/whatsapp/status',                 [ProspeccaoController::class, 'status']);
+            Route::get('/whatsapp/qrcode',                 [ProspeccaoController::class, 'qrcode']);
+            Route::post('/whatsapp/desconectar',           [ProspeccaoController::class, 'desconectar']);
+            Route::post('/whatsapp/configurar-webhook',    [ProspeccaoController::class, 'configurarWebhook']);
+        });
     });
 
     // Módulo Grupos de Camisas (Admin, Cliente e Confecção)
