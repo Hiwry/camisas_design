@@ -188,6 +188,7 @@ Route::middleware(['auth:sanctum', 'ativo'])->group(function () {
         Route::prefix('prospeccao')->group(function () {
             Route::get('/resumo',                          [ProspeccaoController::class, 'resumo']);
             Route::get('/fila',                            [ProspeccaoController::class, 'fila']);
+            Route::get('/filtros',                         [ProspeccaoController::class, 'filtros']);
             Route::get('/prospectos',                      [ProspeccaoController::class, 'listar']);
             Route::post('/prospectos',                     [ProspeccaoController::class, 'criar']);
             Route::post('/prospectos/importar-lista',      [ProspeccaoController::class, 'importarLista']);

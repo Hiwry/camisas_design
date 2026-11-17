@@ -57,20 +57,7 @@ class ProspeccaoController extends Controller
     /** GET /api/prospeccao/prospectos */
     public function listar(Request $request): JsonResponse
     {
-        $q = Prospecto::query();
-        if ($s = $request->query('status')) {
-            $q->where('status', $s);
-        }
-        if ($uf = $request->query('uf')) {
-            $q->where('uf', strtoupper($uf));
-        }
-        if ($b = trim((string) $request->query('busca'))) {
-            $q->where(function ($w) use ($b) {
-                $w->where('nome', 'like', "%{$b}%")
-                  ->orWhere('cidade', 'like', "%{$b}%")
-                  ->orWhere('telefone', 'like', '%' . preg_replace('/\D/', '', $b) . '%');
-            });
-        }
+        $q = $this->aplicarFiltros(Prospecto::query(), $request->query());
         $q->orderByDesc('data_abertura')->orderByDesc('id');
 
         return response()->json($q->paginate(min((int) $request->query('por_pagina', 30), 100)));
@@ -160,22 +147,73 @@ class ProspeccaoController extends Controller
     public function aprovar(Request $request): JsonResponse
     {
         $d = $request->validate([
-            'acao'  => 'required|in:aprovar,rejeitar',
-            'ids'   => 'nullable|array|max:5000',
-            'ids.*' => 'integer',
-            'todos' => 'nullable|boolean',
+            'acao'    => 'required|in:aprovar,rejeitar,pendente',
+            'ids'     => 'nullable|array|max:5000',
+            'ids.*'   => 'integer',
+            'todos'   => 'nullable|boolean',
+            'filtros' => 'nullable|array',
         ]);
 
-        $q = Prospecto::where('status', 'pendente');
+        // Só mexe em contatos ainda não trabalhados: pendente, aprovado (novo) ou rejeitado.
+        $f = $d['filtros'] ?? [];
+        $origem = in_array($f['status'] ?? 'pendente', ['pendente', 'novo', 'descartado'], true) ? ($f['status'] ?? 'pendente') : 'pendente';
+        $f['status'] = $origem;
+
+        $q = $this->aplicarFiltros(Prospecto::query(), $f);
         if (empty($d['todos'])) {
             if (empty($d['ids'])) {
                 return response()->json(['message' => 'Selecione ao menos um contato.'], 422);
             }
             $q->whereIn('id', $d['ids']);
         }
-        $total = $q->update(['status' => $d['acao'] === 'aprovar' ? 'novo' : 'descartado']);
+        $novo = ['aprovar' => 'novo', 'rejeitar' => 'descartado', 'pendente' => 'pendente'][$d['acao']];
+        $total = $q->update(['status' => $novo]);
 
         return response()->json(['atualizados' => $total, 'acao' => $d['acao']]);
+    }
+
+    /** GET /api/prospeccao/filtros — UFs e cidades disponíveis (com contagem) para os filtros. */
+    public function filtros(Request $request): JsonResponse
+    {
+        $status = $request->query('status', 'pendente');
+        $base = Prospecto::query()->when($status !== 'todos', fn ($q) => $q->where('status', $status));
+
+        $ufs = (clone $base)->whereNotNull('uf')->where('uf', '!=', '')
+            ->select('uf', DB::raw('count(*) as total'))->groupBy('uf')->orderBy('uf')->get();
+
+        $cidades = collect();
+        if ($uf = strtoupper((string) $request->query('uf'))) {
+            $cidades = (clone $base)->where('uf', $uf)->whereNotNull('cidade')->where('cidade', '!=', '')
+                ->select('cidade', DB::raw('count(*) as total'))->groupBy('cidade')
+                ->orderByDesc('total')->limit(300)->get();
+        }
+
+        return response()->json(['ufs' => $ufs, 'cidades' => $cidades]);
+    }
+
+    /** Filtros comuns de lista/aprovação: status, uf, cidade, busca, com_nome. */
+    private function aplicarFiltros($q, array $f)
+    {
+        if (!empty($f['status']) && $f['status'] !== 'todos') {
+            $q->where('status', $f['status']);
+        }
+        if (!empty($f['uf'])) {
+            $q->where('uf', strtoupper((string) $f['uf']));
+        }
+        if (!empty($f['cidade'])) {
+            $q->where('cidade', (string) $f['cidade']);
+        }
+        if (!empty($f['com_nome']) && $f['com_nome'] !== 'false' && $f['com_nome'] !== '0') {
+            $q->whereNotNull('nome')->where('nome', '!=', '');
+        }
+        if ($b = trim((string) ($f['busca'] ?? ''))) {
+            $q->where(function ($w) use ($b) {
+                $w->where('nome', 'like', "%{$b}%")
+                  ->orWhere('cidade', 'like', "%{$b}%")
+                  ->orWhere('telefone', 'like', '%' . preg_replace('/\D/', '', $b) . '%');
+            });
+        }
+        return $q;
     }
 
     /** PATCH /api/prospeccao/prospectos/{prospecto} */

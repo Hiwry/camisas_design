@@ -130,17 +130,34 @@ function Aprovar({ total }: { total: number }) {
   const qc = useQueryClient()
   const [pagina, setPagina] = useState(1)
   const [sel, setSel] = useState<Set<number>>(new Set())
+  const [status, setStatus] = useState<'pendente' | 'novo' | 'descartado'>('pendente')
+  const [uf, setUf] = useState('')
+  const [cidade, setCidade] = useState('')
+  const [busca, setBusca] = useState('')
+  const [buscaAplicada, setBuscaAplicada] = useState('')
+  const [comNome, setComNome] = useState(false)
+
+  const filtros = { status, uf: uf || undefined, cidade: cidade || undefined, busca: buscaAplicada || undefined, com_nome: comNome ? 1 : undefined }
+  const mudarFiltro = (fn: () => void) => { fn(); setPagina(1); setSel(new Set()) }
+
+  const { data: opcoes } = useQuery({
+    queryKey: ['prosp-filtros', status, uf],
+    queryFn: () => prospeccaoService.filtros({ status, uf: uf || undefined }),
+  })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['prosp-pendentes', pagina],
-    queryFn: () => prospeccaoService.listar({ status: 'pendente', page: pagina, por_pagina: 50 }),
+    queryKey: ['prosp-pendentes', filtros, pagina],
+    queryFn: () => prospeccaoService.listar({ ...filtros, page: pagina, por_pagina: 50 }),
   })
   const linhas: Prospecto[] = data?.data ?? []
+  const totalFiltrado: number = data?.total ?? 0
+  const rotuloStatus = { pendente: 'aguardando', novo: 'aprovado(s)', descartado: 'rejeitado(s)' }[status]
 
   const acao = useMutation({
-    mutationFn: (p: { acao: 'aprovar' | 'rejeitar'; ids?: number[]; todos?: boolean }) => prospeccaoService.aprovar(p),
+    mutationFn: (p: { acao: 'aprovar' | 'rejeitar' | 'pendente'; ids?: number[]; todos?: boolean }) =>
+      prospeccaoService.aprovar({ ...p, filtros }),
     onSuccess: (r) => {
-      toast.success(`${r.atualizados} contato(s) ${r.acao === 'aprovar' ? 'aprovados' : 'rejeitados'}`)
+      toast.success(`${r.atualizados} contato(s) ${r.acao === 'aprovar' ? 'aprovados' : r.acao === 'rejeitar' ? 'rejeitados' : 'devolvidos para aguardando'}`)
       setSel(new Set())
       qc.invalidateQueries({ queryKey: ['prosp-pendentes'] })
       qc.invalidateQueries({ queryKey: ['prosp-resumo'] })
@@ -162,25 +179,81 @@ function Aprovar({ total }: { total: number }) {
         Quem você rejeitar nunca será chamado.
       </div>
 
+      {/* Filtros */}
+      <div className="rounded-xl p-3 space-y-3" style={card}>
+        <div className="flex flex-wrap items-center gap-2">
+          {([['pendente', 'Aguardando aprovação'], ['novo', 'Aprovados'], ['descartado', 'Rejeitados']] as const).map(([k, rot]) => (
+            <button key={k} onClick={() => mudarFiltro(() => setStatus(k))}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border"
+                    style={status === k ? { background: '#E7B32C', color: '#0B0B0C', borderColor: '#E7B32C' } : { color: '#a1a1aa', borderColor: '#2a2a2e' }}>
+              {rot}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={uf} onChange={(e) => mudarFiltro(() => { setUf(e.target.value); setCidade('') })}
+                  className="px-3 py-2 rounded-lg text-xs bg-[#0B0B0C] text-zinc-200 border border-[#2a2a2e]">
+            <option value="">Todos os estados</option>
+            {(opcoes?.ufs ?? []).map((u) => <option key={u.uf} value={u.uf}>{u.uf} ({u.total})</option>)}
+          </select>
+          <select value={cidade} disabled={!uf} onChange={(e) => mudarFiltro(() => setCidade(e.target.value))}
+                  className="px-3 py-2 rounded-lg text-xs bg-[#0B0B0C] text-zinc-200 border border-[#2a2a2e] disabled:opacity-40 max-w-[220px]">
+            <option value="">{uf ? 'Todas as cidades' : 'Escolha um estado'}</option>
+            {(opcoes?.cidades ?? []).map((c) => <option key={c.cidade} value={c.cidade}>{c.cidade} ({c.total})</option>)}
+          </select>
+          <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); mudarFiltro(() => setBuscaAplicada(busca.trim())) }}>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, cidade ou telefone"
+                   className="px-3 py-2 rounded-lg text-xs bg-[#0B0B0C] text-zinc-200 border border-[#2a2a2e] w-60" />
+            <button type="submit" className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-200 border border-[#2a2a2e]">Buscar</button>
+          </form>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+            <input type="checkbox" checked={comNome} onChange={(e) => mudarFiltro(() => setComNome(e.target.checked))} />
+            Só com nome da marca
+          </label>
+          {(uf || cidade || buscaAplicada || comNome) && (
+            <button onClick={() => mudarFiltro(() => { setUf(''); setCidade(''); setBusca(''); setBuscaAplicada(''); setComNome(false) })}
+                    className="text-xs text-amber-400 hover:underline">Limpar filtros</button>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={marcarPagina} className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-200 border border-[#2a2a2e] hover:bg-zinc-800/60">
           {todosMarcados ? 'Desmarcar página' : 'Marcar página'}
         </button>
-        <span className="text-xs text-zinc-500">{sel.size} selecionado(s) · {total} aguardando</span>
+        <span className="text-xs text-zinc-500">{sel.size} selecionado(s) · {totalFiltrado} {rotuloStatus} neste filtro</span>
         <div className="flex-1" />
-        <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'rejeitar', ids: [...sel] })}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 disabled:opacity-30">
-          Rejeitar selecionados
-        </button>
-        <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'aprovar', ids: [...sel] })}
-                className="px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-30" style={{ background: '#E7B32C', color: '#0B0B0C' }}>
-          Aprovar selecionados
-        </button>
-        <button disabled={total === 0 || acao.isPending}
-                onClick={() => confirm(`Aprovar TODOS os ${total} contatos pendentes (inclusive de outras páginas)?`) && acao.mutate({ acao: 'aprovar', todos: true })}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-200 border border-[#2a2a2e] disabled:opacity-30">
-          Aprovar todos ({total})
-        </button>
+        {status === 'pendente' && (
+          <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'rejeitar', ids: [...sel] })}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 disabled:opacity-30">
+            Rejeitar selecionados
+          </button>
+        )}
+        {status !== 'pendente' && (
+          <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'pendente', ids: [...sel] })}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-200 border border-[#2a2a2e] disabled:opacity-30">
+            Voltar p/ aguardando
+          </button>
+        )}
+        {status === 'novo' && (
+          <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'rejeitar', ids: [...sel] })}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 disabled:opacity-30">
+            Rejeitar selecionados
+          </button>
+        )}
+        {status !== 'novo' && (
+          <button disabled={sel.size === 0 || acao.isPending} onClick={() => acao.mutate({ acao: 'aprovar', ids: [...sel] })}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-30" style={{ background: '#E7B32C', color: '#0B0B0C' }}>
+            Aprovar selecionados
+          </button>
+        )}
+        {status === 'pendente' && (
+          <button disabled={totalFiltrado === 0 || acao.isPending}
+                  onClick={() => confirm(`Aprovar TODOS os ${totalFiltrado} contatos deste filtro (inclusive de outras páginas)?`) && acao.mutate({ acao: 'aprovar', todos: true })}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-200 border border-[#2a2a2e] disabled:opacity-30">
+            Aprovar todos do filtro ({totalFiltrado})
+          </button>
+        )}
       </div>
 
       <div className="rounded-xl overflow-x-auto" style={card}>
@@ -195,7 +268,9 @@ function Aprovar({ total }: { total: number }) {
             {isLoading && <tr><td colSpan={6} className="px-4 py-8 text-center"><Loader2 className="w-4 h-4 animate-spin inline text-zinc-500" /></td></tr>}
             {!isLoading && linhas.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500 text-xs">
-                Nenhum contato aguardando aprovação. Importe da Receita, cole uma lista ou adicione na aba Contatos.
+                {status === 'pendente' && !uf && !cidade && !buscaAplicada && !comNome
+                  ? 'Nenhum contato aguardando aprovação. Importe da Receita, cole uma lista ou adicione na aba Contatos.'
+                  : 'Nenhum contato encontrado com esses filtros.'}
               </td></tr>
             )}
             {linhas.map((p) => (

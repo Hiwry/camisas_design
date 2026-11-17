@@ -194,8 +194,10 @@ export const prospeccaoService = {
   listar: (params: Record<string, unknown>) =>
     api.get('/prospeccao/prospectos', { params }).then(r => r.data),
   criar: (data: Record<string, unknown>) => api.post('/prospeccao/prospectos', data).then(r => r.data),
-  aprovar: (data: { acao: 'aprovar' | 'rejeitar'; ids?: number[]; todos?: boolean }) =>
+  aprovar: (data: { acao: 'aprovar' | 'rejeitar' | 'pendente'; ids?: number[]; todos?: boolean; filtros?: Record<string, unknown> }) =>
     api.post('/prospeccao/prospectos/aprovar', data).then(r => r.data),
+  filtros: (params: { status?: string; uf?: string }): Promise<{ ufs: { uf: string; total: number }[]; cidades: { cidade: string; total: number }[] }> =>
+    api.get('/prospeccao/filtros', { params }).then(r => r.data),
   importarLista: (lista: string) =>
     api.post('/prospeccao/prospectos/importar-lista', { lista }).then(r => r.data),
   atualizar: (id: number, data: Record<string, unknown>) =>
