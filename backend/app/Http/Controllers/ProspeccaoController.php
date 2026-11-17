@@ -220,12 +220,131 @@ class ProspeccaoController extends Controller
     public function atualizar(Request $request, Prospecto $prospecto): JsonResponse
     {
         $d = $request->validate([
-            'status' => 'nullable|in:' . implode(',', Prospecto::STATUS),
-            'notas'  => 'nullable|string|max:2000',
-            'nome'   => 'nullable|string|max:160',
+            'status'             => 'nullable|in:' . implode(',', Prospecto::STATUS),
+            'notas'              => 'nullable|string|max:2000',
+            'nome'               => 'nullable|string|max:160',
+            'valor_fechado'      => 'nullable|numeric|min:0|max:99999999',
+            'motivo_perda'       => 'nullable|string|max:120',
+            'proximo_contato_em' => 'nullable|date',
+            'nao_lida'           => 'nullable|boolean',
         ]);
-        $prospecto->update(array_filter($d, fn ($v) => $v !== null));
+
+        // Só altera o que foi enviado (inclusive limpar um campo enviando vazio).
+        $campos = array_intersect_key($d, array_flip($request->keys()));
+        if (array_key_exists('status', $campos) && $campos['status'] === null) {
+            unset($campos['status']);
+        }
+        if (array_key_exists('nao_lida', $campos)) {
+            $campos['nao_lida'] = (bool) $campos['nao_lida'];
+        }
+        if (isset($campos['status'])) {
+            // Marca a data da conversão ao virar cliente e limpa se voltar atrás.
+            if ($campos['status'] === 'cliente' && !$prospecto->convertido_em) {
+                $campos['convertido_em'] = now();
+            } elseif ($campos['status'] !== 'cliente' && $prospecto->convertido_em) {
+                $campos['convertido_em'] = null;
+            }
+            if ($campos['status'] !== 'perdido' && $prospecto->motivo_perda && !array_key_exists('motivo_perda', $campos)) {
+                $campos['motivo_perda'] = null;
+            }
+        }
+        $prospecto->update($campos);
         return response()->json($prospecto->fresh());
+    }
+
+    /** GET /api/prospeccao/pipeline — quadro de respostas + métricas de conversão. */
+    public function pipeline(): JsonResponse
+    {
+        $ultima = DB::table('prospeccao_mensagens')->select('prospecto_id', DB::raw('max(id) as mid'))->groupBy('prospecto_id');
+
+        $colunas = [];
+        foreach (['respondeu', 'interessado', 'cliente', 'perdido'] as $st) {
+            $linhas = Prospecto::where('prospectos.status', $st)
+                ->leftJoinSub($ultima, 'u', 'u.prospecto_id', '=', 'prospectos.id')
+                ->leftJoin('prospeccao_mensagens as m', 'm.id', '=', 'u.mid')
+                ->select('prospectos.*', 'm.texto as ultima_texto', 'm.direcao as ultima_direcao', 'm.created_at as ultima_em')
+                ->orderByDesc('prospectos.nao_lida')->orderByDesc('m.created_at')->limit(100)->get()
+                ->map(fn ($p) => [
+                    'id' => $p->id, 'nome' => $p->nome, 'telefone' => $p->telefone, 'cidade' => $p->cidade, 'uf' => $p->uf,
+                    'status' => $p->status, 'etapa' => $p->etapa, 'nao_lida' => (bool) $p->nao_lida,
+                    'valor_fechado' => $p->valor_fechado, 'motivo_perda' => $p->motivo_perda,
+                    'proximo_contato_em' => $p->proximo_contato_em?->format('Y-m-d'), 'notas' => $p->notas,
+                    'respondeu_em' => $p->respondeu_em, 'convertido_em' => $p->convertido_em,
+                    'ultima_texto' => $p->ultima_texto ? mb_substr($p->ultima_texto, 0, 120) : null,
+                    'ultima_direcao' => $p->ultima_direcao, 'ultima_em' => $p->ultima_em,
+                ]);
+            $colunas[$st] = ['total' => Prospecto::where('status', $st)->count(), 'itens' => $linhas];
+        }
+
+        $enviados    = Prospecto::whereNotNull('ultimo_envio_em')->count();
+        $responderam = Prospecto::whereNotNull('respondeu_em')->where('status', '!=', 'optout')->count();
+        $clientes    = Prospecto::where('status', 'cliente')->count();
+        $metricas = [
+            'enviados'        => $enviados,
+            'responderam'     => $responderam,
+            'interessados'    => Prospecto::whereIn('status', ['interessado', 'cliente'])->count(),
+            'clientes'        => $clientes,
+            'perdidos'        => Prospecto::where('status', 'perdido')->count(),
+            'optout'          => Prospecto::where('status', 'optout')->count(),
+            'nao_lidas'       => Prospecto::where('nao_lida', true)->count(),
+            'retornos_hoje'   => Prospecto::whereIn('status', ['respondeu', 'interessado'])
+                ->whereNotNull('proximo_contato_em')->whereDate('proximo_contato_em', '<=', now($this->svc->config()['timezone'] ?? config('prospeccao.timezone'))->toDateString())->count(),
+            'valor_total'     => (float) Prospecto::where('status', 'cliente')->sum('valor_fechado'),
+            'taxa_resposta'   => $enviados > 0 ? round($responderam / $enviados * 100, 1) : null,
+            'taxa_conversao'  => $enviados > 0 ? round($clientes / $enviados * 100, 2) : null,
+            'resposta_cliente' => $responderam > 0 ? round($clientes / $responderam * 100, 1) : null,
+        ];
+
+        $agg = "count(*) as enviados, sum(respondeu_em is not null and status <> 'optout') as respostas, "
+             . "sum(status = 'cliente') as clientes, coalesce(sum(valor_fechado), 0) as valor";
+
+        $nomes = ProspeccaoModelo::pluck('nome', 'id');
+        $porModelo = Prospecto::whereNotNull('modelo_id')->selectRaw("modelo_id, $agg")->groupBy('modelo_id')->get()
+            ->map(fn ($r) => [
+                'modelo' => $nomes[$r->modelo_id] ?? ('Modelo ' . $r->modelo_id), 'enviados' => (int) $r->enviados,
+                'respostas' => (int) $r->respostas, 'clientes' => (int) $r->clientes, 'valor' => (float) $r->valor,
+                'taxa' => $r->enviados > 0 ? round($r->respostas / $r->enviados * 100, 1) : null,
+            ])->sortByDesc('enviados')->values();
+
+        $porUf = Prospecto::whereNotNull('ultimo_envio_em')->whereNotNull('uf')->selectRaw("uf, $agg")
+            ->groupBy('uf')->orderByDesc('enviados')->limit(10)->get()
+            ->map(fn ($r) => [
+                'uf' => $r->uf, 'enviados' => (int) $r->enviados, 'respostas' => (int) $r->respostas,
+                'clientes' => (int) $r->clientes, 'valor' => (float) $r->valor,
+                'taxa' => $r->enviados > 0 ? round($r->respostas / $r->enviados * 100, 1) : null,
+            ]);
+
+        $motivos = Prospecto::where('status', 'perdido')->whereNotNull('motivo_perda')
+            ->select('motivo_perda', DB::raw('count(*) as total'))->groupBy('motivo_perda')->orderByDesc('total')->get();
+
+        return response()->json([
+            'colunas' => $colunas, 'metricas' => $metricas,
+            'por_modelo' => $porModelo, 'por_uf' => $porUf, 'motivos_perda' => $motivos,
+        ]);
+    }
+
+    /** POST /api/prospeccao/prospectos/{prospecto}/responder — responde pelo CRM, direto no WhatsApp. */
+    public function responder(Request $request, Prospecto $prospecto): JsonResponse
+    {
+        $d = $request->validate(['texto' => 'required|string|max:2000']);
+        if ($prospecto->status === 'optout') {
+            return response()->json(['message' => 'Este contato pediu para não ser chamado.'], 422);
+        }
+        if (!$prospecto->telefone) {
+            return response()->json(['message' => 'Contato sem telefone.'], 422);
+        }
+
+        $ok = $this->svc->whatsapp()->enviarTexto($prospecto->telefone, $d['texto']);
+        ProspeccaoMensagem::create([
+            'prospecto_id' => $prospecto->id, 'direcao' => 'saida', 'tipo' => 'manual',
+            'texto' => $d['texto'], 'ok' => $ok, 'erro' => $ok ? null : 'Falha ao enviar pela Evolution API',
+            'created_at' => now(),
+        ]);
+        if (!$ok) {
+            return response()->json(['message' => 'Não foi possível enviar. Confira se o WhatsApp está conectado.'], 502);
+        }
+        $prospecto->update(['nao_lida' => false]);
+        return response()->json(['success' => true]);
     }
 
     /** DELETE /api/prospeccao/prospectos/{prospecto} */

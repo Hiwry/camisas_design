@@ -149,7 +149,9 @@ class ProspeccaoService
     public function enviadosHoje(): int
     {
         $ini = now($this->tz())->startOfDay()->setTimezone(config('app.timezone'));
+        // Respostas manuais (conversa com quem já respondeu) não gastam o limite de prospecção.
         return ProspeccaoMensagem::where('direcao', 'saida')->where('ok', true)
+            ->where('tipo', '!=', 'manual')
             ->where('created_at', '>=', $ini)->count();
     }
 
@@ -391,9 +393,12 @@ class ProspeccaoService
         ]);
 
         if ($this->ehOptOut($texto)) {
-            $p->update(['status' => 'optout', 'respondeu_em' => $p->respondeu_em ?? now()]);
+            $p->update(['status' => 'optout', 'respondeu_em' => $p->respondeu_em ?? now(), 'nao_lida' => false]);
         } elseif (in_array($p->status, ['novo', 'em_sequencia'], true)) {
-            $p->update(['status' => 'respondeu', 'respondeu_em' => now()]);
+            $p->update(['status' => 'respondeu', 'respondeu_em' => now(), 'nao_lida' => true]);
+        } else {
+            // Já está no funil (respondeu, interessado, cliente, perdido...): só avisa que há mensagem nova.
+            $p->update(['nao_lida' => true]);
         }
         return $p;
     }

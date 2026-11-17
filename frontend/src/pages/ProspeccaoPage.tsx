@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Target, Play, Pause, Plus, Upload, Trash2, MessageSquare, Wifi, WifiOff, QrCode,
-  Loader2, AlertTriangle, Save, X,
+  Loader2, AlertTriangle, Save, X, Send, ExternalLink,
 } from 'lucide-react'
 import {
   prospeccaoService, type Prospecto, type ProspeccaoConfig, type ProspeccaoModelo,
+  type ProspeccaoCardResposta,
 } from '@/services/api'
 
 const STATUS: Record<string, { label: string; cor: string }> = {
@@ -16,6 +17,7 @@ const STATUS: Record<string, { label: string; cor: string }> = {
   respondeu:    { label: 'Respondeu',     cor: '#10b981' },
   interessado:  { label: 'Interessado',   cor: '#E7B32C' },
   cliente:      { label: 'Cliente',       cor: '#8b5cf6' },
+  perdido:      { label: 'Perdido',       cor: '#78716c' },
   sem_whatsapp: { label: 'Sem WhatsApp',  cor: '#a16207' },
   descartado:   { label: 'Descartado',    cor: '#52525b' },
   optout:       { label: 'Não chamar',    cor: '#ef4444' },
@@ -35,11 +37,15 @@ const input =
 
 export default function ProspeccaoPage() {
   const qc = useQueryClient()
-  const [aba, setAba] = useState<'aprovar' | 'fila' | 'contatos' | 'modelos' | 'config'>('aprovar')
+  const [aba, setAba] = useState<'aprovar' | 'fila' | 'respostas' | 'contatos' | 'modelos' | 'config'>('aprovar')
 
   const { data: resumo } = useQuery({
     queryKey: ['prosp-resumo'], queryFn: prospeccaoService.resumo, refetchInterval: 10000,
   })
+  const { data: pipe } = useQuery({
+    queryKey: ['prosp-pipeline'], queryFn: prospeccaoService.pipeline, refetchInterval: 15000,
+  })
+  const naoLidas = pipe?.metricas.nao_lidas ?? 0
 
   const ligar = useMutation({
     mutationFn: (ativo: boolean) => prospeccaoService.config({ ativo }),
@@ -92,7 +98,7 @@ export default function ProspeccaoPage() {
       )}
 
       {/* Funil */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">
         {Object.entries(STATUS).map(([k, v]) => (
           <div key={k} className="rounded-xl p-3 text-center" style={card}>
             <div className="text-xl font-bold" style={{ color: v.cor }}>{f[k] ?? 0}</div>
@@ -103,20 +109,23 @@ export default function ProspeccaoPage() {
 
       {/* Abas */}
       <div className="flex gap-1 border-b" style={{ borderColor: '#222225' }}>
-        {(['aprovar', 'fila', 'contatos', 'modelos', 'config'] as const).map((a) => (
+        {(['aprovar', 'fila', 'respostas', 'contatos', 'modelos', 'config'] as const).map((a) => (
           <button key={a} onClick={() => setAba(a)}
             className="px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors"
             style={{
               borderColor: aba === a ? '#E7B32C' : 'transparent',
               color: aba === a ? '#E7B32C' : '#71717a',
             }}>
-            {a === 'aprovar' ? `Aprovar contatos${f.pendente ? ` (${f.pendente})` : ''}` : a === 'fila' ? 'Prévia do envio' : a === 'contatos' ? 'Contatos' : a === 'modelos' ? 'Mensagens' : 'Conexão e ajustes'}
+            {a === 'aprovar' ? `Aprovar contatos${f.pendente ? ` (${f.pendente})` : ''}` : a === 'fila' ? 'Prévia do envio'
+              : a === 'respostas' ? <>Respostas e vendas{naoLidas > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#ef4444', color: '#fff' }}>{naoLidas}</span>}</>
+              : a === 'contatos' ? 'Contatos' : a === 'modelos' ? 'Mensagens' : 'Conexão e ajustes'}
           </button>
         ))}
       </div>
 
       {aba === 'aprovar' && <Aprovar total={f.pendente ?? 0} />}
       {aba === 'fila' && <Fila />}
+      {aba === 'respostas' && <Respostas />}
       {aba === 'contatos' && <Contatos />}
       {aba === 'modelos' && <Modelos porModelo={resumo?.por_modelo ?? []} />}
       {aba === 'config' && resumo && <Ajustes config={resumo.config} />}
@@ -523,26 +532,293 @@ function Contatos() {
   )
 }
 
-function Conversa({ p, onClose }: { p: Prospecto; onClose: () => void }) {
-  const { data } = useQuery({ queryKey: ['prosp-msgs', p.id], queryFn: () => prospeccaoService.mensagens(p.id) })
+/* ───────────────────────── Atendimento (conversa + controle de venda) ───────────────────────── */
+
+type ContatoBase = Pick<Prospecto, 'id' | 'nome' | 'telefone' | 'cidade' | 'uf' | 'status' | 'notas'> & {
+  nao_lida?: boolean; valor_fechado?: number | null; motivo_perda?: string | null; proximo_contato_em?: string | null
+}
+
+const ETAPAS_VENDA: { k: string; rot: string }[] = [
+  { k: 'respondeu', rot: 'Respondeu' }, { k: 'interessado', rot: 'Interessado' },
+  { k: 'cliente', rot: 'Virou cliente' }, { k: 'perdido', rot: 'Perdido' }, { k: 'optout', rot: 'Não chamar' },
+]
+const MOTIVOS_PERDA = ['Já tem designer', 'Faz a arte internamente', 'Sem interesse', 'Achou caro', 'Parou de responder', 'Outro']
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function tempoRelativo(iso: string | null | undefined) {
+  if (!iso) return ''
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (min < 1) return 'agora'
+  if (min < 60) return `${min} min`
+  if (min < 1440) return `${Math.round(min / 60)} h`
+  return `${Math.round(min / 1440)} d`
+}
+
+function Conversa({ p, onClose }: { p: ContatoBase; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [status, setStatus] = useState(p.status)
+  const [notas, setNotas] = useState(p.notas ?? '')
+  const [valor, setValor] = useState(p.valor_fechado != null ? String(p.valor_fechado) : '')
+  const [motivo, setMotivo] = useState(p.motivo_perda ?? '')
+  const [retorno, setRetorno] = useState(p.proximo_contato_em ?? '')
+  const [texto, setTexto] = useState('')
+
+  const { data } = useQuery({
+    queryKey: ['prosp-msgs', p.id], queryFn: () => prospeccaoService.mensagens(p.id), refetchInterval: 8000,
+  })
+
+  const refrescar = () => {
+    qc.invalidateQueries({ queryKey: ['prosp-pipeline'] })
+    qc.invalidateQueries({ queryKey: ['prosp-resumo'] })
+    qc.invalidateQueries({ queryKey: ['prosp-lista'] })
+  }
+
+  // Abrir a conversa marca como lida.
+  useQuery({
+    queryKey: ['prosp-lida', p.id],
+    queryFn: async () => { if (p.nao_lida) { await prospeccaoService.atualizar(p.id, { nao_lida: false }); refrescar() } return true },
+    staleTime: Infinity,
+  })
+
+  const salvar = useMutation({
+    mutationFn: () => prospeccaoService.atualizar(p.id, {
+      status,
+      notas: notas.trim() || null,
+      valor_fechado: status === 'cliente' && valor !== '' ? Number(valor.replace(',', '.')) : null,
+      motivo_perda: status === 'perdido' ? (motivo || null) : null,
+      proximo_contato_em: retorno || null,
+    }),
+    onSuccess: () => { toast.success('Salvo'); refrescar() },
+    onError: (e) => toast.error(erro(e, 'Não foi possível salvar.')),
+  })
+
+  const responder = useMutation({
+    mutationFn: () => prospeccaoService.responder(p.id, texto.trim()),
+    onSuccess: () => { setTexto(''); qc.invalidateQueries({ queryKey: ['prosp-msgs', p.id] }); refrescar() },
+    onError: (e) => toast.error(erro(e, 'Não foi possível enviar.')),
+  })
+
+  const msgs: { id: number; direcao: string; tipo: string; texto: string; ok: boolean; created_at: string }[] = data ?? []
+  const wa = p.telefone ? `https://wa.me/${p.telefone.replace(/\D/g, '')}` : null
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-xl p-5 space-y-3" style={card} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">{p.nome || p.telefone}</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
-        </div>
-        {(data ?? []).length === 0 && <p className="text-xs text-zinc-500">Nenhuma mensagem ainda.</p>}
-        {(data ?? []).map((m: { id: number; direcao: string; texto: string; ok: boolean; created_at: string }) => (
-          <div key={m.id} className={m.direcao === 'saida' ? 'text-right' : 'text-left'}>
-            <div className="inline-block max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap text-left"
-                 style={{ background: m.direcao === 'saida' ? 'rgba(231,179,44,0.12)' : '#1c1c1f', color: m.ok ? '#e4e4e7' : '#f87171' }}>
-              {m.texto}
+      <div className="w-full max-w-4xl max-h-[88vh] rounded-xl overflow-hidden grid md:grid-cols-[1fr_300px]" style={card} onClick={(e) => e.stopPropagation()}>
+        {/* Conversa */}
+        <div className="flex flex-col min-h-0 min-w-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#222225' }}>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-white truncate">{p.nome || p.telefone}</h3>
+              <p className="text-[11px] text-zinc-500">{[p.cidade, p.uf].filter(Boolean).join(' / ')} · {p.telefone}</p>
             </div>
-            <div className="text-[10px] text-zinc-600 mt-0.5">{new Date(m.created_at).toLocaleString('pt-BR')}{!m.ok && ' · falhou'}</div>
+            <div className="flex items-center gap-2">
+              {wa && <a href={wa} target="_blank" rel="noreferrer" title="Abrir no WhatsApp" className="text-zinc-500 hover:text-white"><ExternalLink className="w-4 h-4" /></a>}
+              <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+            {msgs.length === 0 && <p className="text-xs text-zinc-500">Nenhuma mensagem ainda.</p>}
+            {msgs.map((m) => (
+              <div key={m.id} className={m.direcao === 'saida' ? 'text-right' : 'text-left'}>
+                <div className="inline-block max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap text-left"
+                     style={{ background: m.direcao === 'saida' ? 'rgba(231,179,44,0.12)' : '#1c1c1f', color: m.ok ? '#e4e4e7' : '#f87171' }}>
+                  {m.texto}
+                </div>
+                <div className="text-[10px] text-zinc-600 mt-0.5">
+                  {new Date(m.created_at).toLocaleString('pt-BR')}{m.tipo === 'manual' && ' · você'}{!m.ok && ' · falhou'}
+                </div>
+              </div>
+            ))}
+          </div>
+          {status !== 'optout' && (
+            <div className="p-3 border-t flex gap-2 items-end" style={{ borderColor: '#222225' }}>
+              <textarea className={input + ' h-16 resize-none'} placeholder="Responder pelo WhatsApp…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+              <button onClick={() => responder.mutate()} disabled={!texto.trim() || responder.isPending}
+                      className="p-2.5 rounded-lg disabled:opacity-40" style={{ background: '#E7B32C', color: '#0B0B0C' }} title="Enviar">
+                {responder.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Controle da venda */}
+        <div className="p-4 space-y-3 overflow-y-auto border-t md:border-t-0 md:border-l" style={{ borderColor: '#222225' }}>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-1.5">Etapa</div>
+            <div className="flex flex-wrap gap-1.5">
+              {ETAPAS_VENDA.map((e) => (
+                <button key={e.k} onClick={() => setStatus(e.k)} className="px-2.5 py-1 rounded-full text-[11px] font-semibold border"
+                        style={status === e.k
+                          ? { background: STATUS[e.k].cor, color: '#0B0B0C', borderColor: STATUS[e.k].cor }
+                          : { color: '#a1a1aa', borderColor: '#2a2a2e' }}>
+                  {e.rot}
+                </button>
+              ))}
+            </div>
+          </div>
+          {status === 'cliente' && (
+            <label className="block text-[11px] text-zinc-500">Valor fechado (R$)
+              <input className={input + ' mt-1'} inputMode="decimal" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} />
+            </label>
+          )}
+          {status === 'perdido' && (
+            <label className="block text-[11px] text-zinc-500">Motivo
+              <select className={input + ' mt-1'} value={motivo} onChange={(e) => setMotivo(e.target.value)}>
+                <option value="">Selecione…</option>
+                {MOTIVOS_PERDA.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="block text-[11px] text-zinc-500">Voltar a falar em
+            <input type="date" className={input + ' mt-1'} value={retorno} onChange={(e) => setRetorno(e.target.value)} />
+          </label>
+          <label className="block text-[11px] text-zinc-500">Anotações
+            <textarea className={input + ' mt-1 h-24'} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ex.: quer 3 estampas, pediu orçamento…" />
+          </label>
+          <button onClick={() => salvar.mutate()} disabled={salvar.isPending}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
+                  style={{ background: '#E7B32C', color: '#0B0B0C' }}>
+            <Save className="w-4 h-4" /> Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ───────────────────────── Respostas e vendas ───────────────────────── */
+
+const COLUNAS_RESP: { k: 'respondeu' | 'interessado' | 'cliente' | 'perdido'; rot: string }[] = [
+  { k: 'respondeu', rot: 'Responderam' }, { k: 'interessado', rot: 'Interessados' },
+  { k: 'cliente', rot: 'Clientes' }, { k: 'perdido', rot: 'Perdidos' },
+]
+
+function Respostas() {
+  const [aberto, setAberto] = useState<ProspeccaoCardResposta | null>(null)
+  const { data, isLoading } = useQuery({
+    queryKey: ['prosp-pipeline'], queryFn: prospeccaoService.pipeline, refetchInterval: 15000,
+  })
+
+  if (isLoading || !data) return <div className="py-10 text-center"><Loader2 className="w-4 h-4 animate-spin inline text-zinc-500" /></div>
+  const m = data.metricas
+  const kpis: { rot: string; val: string; sub?: string; cor: string }[] = [
+    { rot: 'Mensagens iniciais', val: String(m.enviados), cor: '#a1a1aa' },
+    { rot: 'Responderam', val: String(m.responderam), sub: m.taxa_resposta != null ? `${m.taxa_resposta}% dos enviados` : undefined, cor: '#10b981' },
+    { rot: 'Interessados', val: String(m.interessados), sub: 'inclui clientes', cor: '#E7B32C' },
+    { rot: 'Clientes', val: String(m.clientes), sub: m.taxa_conversao != null ? `${m.taxa_conversao}% dos enviados` : undefined, cor: '#8b5cf6' },
+    { rot: 'Valor fechado', val: brl(m.valor_total), sub: m.clientes > 0 ? `ticket ${brl(m.valor_total / m.clientes)}` : undefined, cor: '#22c55e' },
+    { rot: 'Retornos de hoje', val: String(m.retornos_hoje), sub: m.nao_lidas > 0 ? `${m.nao_lidas} não lida(s)` : undefined, cor: m.retornos_hoje > 0 ? '#f97316' : '#71717a' },
+  ]
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        {kpis.map((k) => (
+          <div key={k.rot} className="rounded-xl p-3" style={card}>
+            <div className="text-lg font-bold truncate" style={{ color: k.cor }}>{k.val}</div>
+            <div className="text-[11px] text-zinc-400">{k.rot}</div>
+            {k.sub && <div className="text-[10px] text-zinc-600 mt-0.5">{k.sub}</div>}
           </div>
         ))}
       </div>
+
+      {m.responderam === 0 && (
+        <p className="text-xs text-zinc-500 rounded-xl p-4" style={card}>
+          Ainda não há respostas. Quando alguém responder, o contato aparece aqui na hora (com um aviso vermelho) — e você pode
+          conversar, marcar como interessado, registrar a venda e ver quanto cada mensagem converteu.
+          Para as respostas chegarem, o WhatsApp precisa estar conectado e "Ligar respostas" ativado em <b className="text-zinc-300">Conexão e ajustes</b>.
+        </p>
+      )}
+
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
+        {COLUNAS_RESP.map(({ k, rot }) => {
+          const col = data.colunas[k]
+          return (
+            <div key={k} className="rounded-xl p-2.5 space-y-2" style={{ background: '#0f0f10', border: '1px solid #1c1c1f' }}>
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-semibold" style={{ color: STATUS[k].cor }}>{rot}</span>
+                <span className="text-[11px] text-zinc-500">{col.total}</span>
+              </div>
+              <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                {col.itens.length === 0 && <p className="text-[11px] text-zinc-600 px-1 py-3">Nenhum por aqui.</p>}
+                {col.itens.map((c) => (
+                  <button key={c.id} onClick={() => setAberto(c)} className="w-full text-left rounded-lg p-2.5 hover:bg-white/[0.03]"
+                          style={{ background: '#121213', border: `1px solid ${c.nao_lida ? 'rgba(239,68,68,0.5)' : '#222225'}` }}>
+                    <div className="flex items-center gap-1.5">
+                      {c.nao_lida && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+                      <span className="text-sm font-medium text-white truncate">{c.nome || c.telefone}</span>
+                      <span className="ml-auto text-[10px] text-zinc-600 shrink-0">{tempoRelativo(c.ultima_em)}</span>
+                    </div>
+                    <div className="text-[11px] text-zinc-500">{[c.cidade, c.uf].filter(Boolean).join(' / ')}</div>
+                    {c.ultima_texto && (
+                      <div className="text-[11px] text-zinc-400 mt-1 line-clamp-2">
+                        {c.ultima_direcao === 'saida' ? <span className="text-zinc-600">Você: </span> : null}{c.ultima_texto}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {c.valor_fechado != null && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">{brl(c.valor_fechado)}</span>}
+                      {c.motivo_perda && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{c.motivo_perda}</span>}
+                      {c.proximo_contato_em && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300">voltar {new Date(c.proximo_contato_em + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                    </div>
+                  </button>
+                ))}
+                {col.total > col.itens.length && <p className="text-[10px] text-zinc-600 text-center">mostrando os {col.itens.length} mais recentes</p>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-3">
+        <TabelaDesempenho titulo="Qual mensagem converte mais" colunaNome="Mensagem" linhas={data.por_modelo.map((r) => ({ nome: r.modelo, ...r }))} />
+        <TabelaDesempenho titulo="Onde mais responde (top estados)" colunaNome="Estado" linhas={data.por_uf.map((r) => ({ nome: r.uf, ...r }))} />
+      </div>
+
+      {data.motivos_perda.length > 0 && (
+        <div className="rounded-xl p-4" style={card}>
+          <div className="text-xs font-semibold text-zinc-300 mb-2">Por que perdi</div>
+          <div className="flex flex-wrap gap-2">
+            {data.motivos_perda.map((x) => (
+              <span key={x.motivo_perda} className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">{x.motivo_perda} · {x.total}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {aberto && <Conversa p={aberto} onClose={() => setAberto(null)} />}
+    </div>
+  )
+}
+
+function TabelaDesempenho({ titulo, colunaNome, linhas }: {
+  titulo: string; colunaNome: string
+  linhas: { nome: string; enviados: number; respostas: number; clientes: number; valor: number; taxa: number | null }[]
+}) {
+  return (
+    <div className="rounded-xl overflow-hidden" style={card}>
+      <div className="px-4 py-3 text-xs font-semibold text-zinc-300 border-b" style={{ borderColor: '#222225' }}>{titulo}</div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-500">
+            <th className="px-4 py-2">{colunaNome}</th><th className="px-2 py-2 text-right">Env.</th><th className="px-2 py-2 text-right">Resp.</th>
+            <th className="px-2 py-2 text-right">%</th><th className="px-2 py-2 text-right">Clientes</th><th className="px-4 py-2 text-right">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.length === 0 && <tr><td colSpan={6} className="px-4 py-5 text-center text-zinc-600">Sem envios ainda.</td></tr>}
+          {linhas.map((r) => (
+            <tr key={r.nome} className="border-t" style={{ borderColor: '#1c1c1f' }}>
+              <td className="px-4 py-2 text-zinc-200">{r.nome}</td>
+              <td className="px-2 py-2 text-right text-zinc-400">{r.enviados}</td>
+              <td className="px-2 py-2 text-right text-zinc-400">{r.respostas}</td>
+              <td className="px-2 py-2 text-right text-emerald-400">{r.taxa ?? 0}%</td>
+              <td className="px-2 py-2 text-right text-zinc-300">{r.clientes}</td>
+              <td className="px-4 py-2 text-right text-zinc-400">{r.valor > 0 ? brl(r.valor) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

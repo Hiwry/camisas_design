@@ -142,6 +142,43 @@ export interface Prospecto {
   respondeu_em: string | null
   notas: string | null
   origem: string
+  nao_lida?: boolean
+  valor_fechado?: number | null
+  motivo_perda?: string | null
+  proximo_contato_em?: string | null
+  convertido_em?: string | null
+}
+
+export interface ProspeccaoCardResposta {
+  id: number
+  nome: string | null
+  telefone: string | null
+  cidade: string | null
+  uf: string | null
+  status: string
+  etapa: number
+  nao_lida: boolean
+  valor_fechado: number | null
+  motivo_perda: string | null
+  proximo_contato_em: string | null
+  notas: string | null
+  respondeu_em: string | null
+  convertido_em: string | null
+  ultima_texto: string | null
+  ultima_direcao: string | null
+  ultima_em: string | null
+}
+
+export interface ProspeccaoPipeline {
+  colunas: Record<'respondeu' | 'interessado' | 'cliente' | 'perdido', { total: number; itens: ProspeccaoCardResposta[] }>
+  metricas: {
+    enviados: number; responderam: number; interessados: number; clientes: number; perdidos: number; optout: number
+    nao_lidas: number; retornos_hoje: number; valor_total: number
+    taxa_resposta: number | null; taxa_conversao: number | null; resposta_cliente: number | null
+  }
+  por_modelo: { modelo: string; enviados: number; respostas: number; clientes: number; valor: number; taxa: number | null }[]
+  por_uf: { uf: string; enviados: number; respostas: number; clientes: number; valor: number; taxa: number | null }[]
+  motivos_perda: { motivo_perda: string; total: number }[]
 }
 
 export interface ProspeccaoConfig {
@@ -196,6 +233,9 @@ export const prospeccaoService = {
   criar: (data: Record<string, unknown>) => api.post('/prospeccao/prospectos', data).then(r => r.data),
   aprovar: (data: { acao: 'aprovar' | 'rejeitar' | 'pendente'; ids?: number[]; todos?: boolean; filtros?: Record<string, unknown> }) =>
     api.post('/prospeccao/prospectos/aprovar', data).then(r => r.data),
+  pipeline: (): Promise<ProspeccaoPipeline> => api.get('/prospeccao/pipeline').then(r => r.data),
+  responder: (id: number, texto: string) =>
+    api.post(`/prospeccao/prospectos/${id}/responder`, { texto }).then(r => r.data),
   filtros: (params: { status?: string; uf?: string }): Promise<{ ufs: { uf: string; total: number }[]; cidades: { cidade: string; total: number }[] }> =>
     api.get('/prospeccao/filtros', { params }).then(r => r.data),
   importarLista: (lista: string) =>
