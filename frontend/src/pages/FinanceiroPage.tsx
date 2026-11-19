@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Wallet, Package, FileText, TrendingDown, Plus, Trash2, Pencil, Loader2, Save, X, ExternalLink, CheckCircle2, Clock } from 'lucide-react'
@@ -31,8 +31,10 @@ const hoje = () => {
 const msgErro = (e: any, padrao: string) => e?.response?.data?.message || Object.values(e?.response?.data?.errors ?? {})[0]?.toString() || padrao
 
 export default function FinanceiroPage() {
-  const [aba, setAba] = useState<Aba>('pedidos')
-  const [origemNova, setOrigemNova] = useState<OrigemFin>('pedidos')
+  const [sp] = useSearchParams()
+  const abaIni = sp.get('aba')
+  const [aba, setAba] = useState<Aba>(abaIni === 'orcamentos' || abaIni === 'saidas' ? abaIni : 'pedidos')
+  const [origemNova, setOrigemNova] = useState<OrigemFin>(sp.get('origem') === 'orcamentos' ? 'orcamentos' : 'pedidos')
 
   const Tab = ({ id, icon: Icon, children, cor }: { id: Aba; icon: any; children: React.ReactNode; cor?: string }) => (
     <button type="button" onClick={() => setAba(id)} className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold"
@@ -68,7 +70,7 @@ export default function FinanceiroPage() {
 }
 
 /* ───────────────────────── Dashboard ───────────────────────── */
-function DashboardFin({ origem, onNovaSaida }: { origem: OrigemFin; onNovaSaida: () => void }) {
+export function DashboardFin({ origem, onNovaSaida }: { origem: OrigemFin; onNovaSaida: () => void }) {
   const qc = useQueryClient()
   const [periodo, setPeriodo] = useState('mes')
   const [filtroPg, setFiltroPg] = useState<'todos' | 'pago' | 'pendente'>('todos')
@@ -76,7 +78,7 @@ function DashboardFin({ origem, onNovaSaida }: { origem: OrigemFin; onNovaSaida:
   const cor = ORIGEM_COR[origem]
   const marcar = useMutation({
     mutationFn: ({ id, pago }: { id: number; pago: boolean }) => financeiroService.marcarPago(id, pago),
-    onSuccess: (_r, v) => { toast.success(v.pago ? 'Marcado como pago' : 'Marcado como a receber'); qc.invalidateQueries({ queryKey: ['fin-dashboard'] }) },
+    onSuccess: (_r, v) => { toast.success(v.pago ? 'Marcado como pago' : 'Marcado como a receber'); qc.invalidateQueries({ queryKey: ['fin-dashboard'] }); qc.invalidateQueries({ queryKey: ['orcamentos'] }) },
     onError: (e) => toast.error(msgErro(e, 'Não consegui alterar o pagamento.')),
   })
   const pedidosFiltrados = (data?.recentes_pedidos ?? []).filter((p: any) =>

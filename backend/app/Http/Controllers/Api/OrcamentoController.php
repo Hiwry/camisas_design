@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class OrcamentoController extends Controller
 {
-    private const PEDIDO_CAMPOS = ['id', 'orcamento_id', 'titulo', 'status', 'valor', 'prazo', 'confeccao_id', 'created_at'];
+    private const PEDIDO_CAMPOS = ['id', 'orcamento_id', 'titulo', 'status', 'valor', 'prazo', 'confeccao_id', 'pagamento_status', 'created_at'];
 
     public function index(): JsonResponse
     {

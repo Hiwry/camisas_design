@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { confeccaoService, orcamentoService } from '@/services/api'
+import { DashboardFin } from '@/pages/FinanceiroPage'
 import {
   brl, fmtData, gerarPdfOrcamento, parseValor, textoWhatsapp, totalOrcamento,
   type Orcamento, type OrcamentoItem,
@@ -21,7 +22,7 @@ const SERVICOS = ['Criação de arte', 'Ajuste de arte', 'Vetorização', 'Mocku
 const LEGACY_KEY = 'orcamentosArtes'
 
 type StatusOrc = 'aberto' | 'convertido' | 'perdido'
-interface PedidoMini { id: number; titulo: string; status: string; valor: number }
+interface PedidoMini { id: number; titulo: string; status: string; valor: number; pagamento_status?: string }
 interface Registro extends Orcamento { status: StatusOrc; pedidos: PedidoMini[]; total: number }
 
 const STATUS_COR: Record<StatusOrc, { label: string; cor: string }> = {
@@ -65,6 +66,7 @@ const msgErro = (e: any, padrao: string) => e?.response?.data?.message || Object
 
 export default function OrcamentosPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [aba, setAba] = useState<'dashboard' | 'lista' | 'editor'>('dashboard')
   const [orc, setOrc] = useState<Registro>(vazio)
   const [convertendo, setConvertendo] = useState<Registro | null>(null)
@@ -214,26 +216,10 @@ export default function OrcamentosPage() {
                 </section>
               </div>
 
-              <section className="rounded-xl border p-4" style={CARD}>
-                <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#909098' }}>Últimos pedidos vindos de orçamento</h2>
-                {dash.pedidos.recentes.length === 0 ? <p className="text-sm" style={{ color: '#909098' }}>Quando você converter um orçamento, os pedidos aparecem aqui.</p> : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead><tr className="text-left text-xs" style={{ color: '#909098' }}><th className="py-1.5 pr-3">Pedido</th><th className="pr-3">Confecção</th><th className="pr-3">Status</th><th className="pr-3 text-right">Valor</th><th /></tr></thead>
-                      <tbody>
-                        {dash.pedidos.recentes.map((p: any) => (
-                          <tr key={p.id} className="border-t" style={{ borderColor: '#303034' }}>
-                            <td className="py-2 pr-3 text-zinc-100">{p.titulo}</td>
-                            <td className="pr-3 text-zinc-300">{p.confeccao ?? '—'}</td>
-                            <td className="pr-3 text-zinc-300">{PEDIDO_STATUS[p.status] ?? p.status}</td>
-                            <td className="pr-3 text-right font-semibold" style={{ color: '#45DB92' }}>{brl(p.valor)}</td>
-                            <td className="text-right"><Link to={`/pedidos/${p.id}`} className="inline-flex items-center gap-1 text-xs" style={{ color: '#E7B32C' }}>Abrir <ExternalLink className="w-3 h-3" /></Link></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+              <section className="pt-2">
+                <h2 className="text-sm font-bold text-white mb-1">Financeiro dos orçamentos</h2>
+                <p className="text-xs mb-3" style={{ color: '#909098' }}>Saídas, valores pagos e a receber dos pedidos gerados por orçamento.</p>
+                <DashboardFin origem="orcamentos" onNovaSaida={() => navigate('/financeiro?aba=saidas&origem=orcamentos')} />
               </section>
             </>
           )}
@@ -272,7 +258,8 @@ export default function OrcamentosPage() {
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {o.pedidos.map((p) => (
                             <Link key={p.id} to={`/pedidos/${p.id}`} className="rounded border px-2 py-0.5 text-[11px] hover:border-[#E7B32C]" style={{ borderColor: '#303034', color: '#d4d4d8' }}>
-                              Pedido #{p.id} · {PEDIDO_STATUS[p.status] ?? p.status}
+                              Pedido #{p.id} · {PEDIDO_STATUS[p.status] ?? p.status} ·{' '}
+                              <b style={{ color: p.pagamento_status === 'pago' ? '#45DB92' : '#fb923c' }}>{p.pagamento_status === 'pago' ? 'Pago' : 'A receber'}</b>
                             </Link>
                           ))}
                         </div>
