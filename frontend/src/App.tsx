@@ -11,6 +11,7 @@ import AprovacaoPublica from '@/pages/AprovacaoPublica'
 import RevisaoArtePage from '@/pages/RevisaoArtePage'
 import WhatsAppPage from '@/pages/WhatsAppPage'
 import OtimizadorCortePage from '@/pages/OtimizadorCortePage'
+import OrcamentosPage from '@/pages/OrcamentosPage'
 import ProspeccaoPage from '@/pages/ProspeccaoPage'
 import ShopPage from '@/pages/ShopPage'
 import GerenciarShopPage from '@/pages/GerenciarShopPage'
@@ -110,6 +111,14 @@ export default function App() {
             element={
               <AdminRoute>
                 <ProspeccaoPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/orcamentos"
+            element={
+              <AdminRoute>
+                <OrcamentosPage />
               </AdminRoute>
             }
           />
