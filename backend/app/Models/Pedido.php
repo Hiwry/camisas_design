@@ -14,6 +14,7 @@ class Pedido extends Model
 
     protected $fillable = [
         'confeccao_id',
+        'orcamento_id',
         'titulo',
         'capa_url',
         'tipo_impressao',
@@ -108,6 +109,11 @@ class Pedido extends Model
     public function confeccao()
     {
         return $this->belongsTo(Confeccao::class);
+    }
+
+    public function orcamento()
+    {
+        return $this->belongsTo(Orcamento::class, 'orcamento_id');
     }
 
     public function artes()

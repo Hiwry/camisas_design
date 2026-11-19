@@ -489,3 +489,15 @@ export const portfolioService = {
 }
 
 
+
+// ─── Orçamentos de artes (admin) ────────────────────────────────────────────
+export const orcamentoService = {
+  listar: () => api.get('/orcamentos').then((r) => r.data),
+  dashboard: () => api.get('/orcamentos/dashboard').then((r) => r.data),
+  criar: (data: Record<string, unknown>) => api.post('/orcamentos', data).then((r) => r.data),
+  atualizar: (id: number, data: Record<string, unknown>) => api.put(`/orcamentos/${id}`, data).then((r) => r.data),
+  excluir: (id: number) => api.delete(`/orcamentos/${id}`).then((r) => r.data),
+  status: (id: number, status: 'aberto' | 'perdido') => api.patch(`/orcamentos/${id}/status`, { status }).then((r) => r.data),
+  converter: (id: number, data: { confeccao_id: number; tipo_impressao: string }) =>
+    api.post(`/orcamentos/${id}/converter`, data).then((r) => r.data),
+}

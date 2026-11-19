@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConfeccaoController;
 use App\Http\Controllers\Api\PedidoController;
+use App\Http\Controllers\Api\OrcamentoController;
 use App\Http\Controllers\Api\ArteController;
 use App\Http\Controllers\Api\AprovacaoController;
 use App\Http\Controllers\Api\DashboardController;
@@ -98,6 +99,17 @@ Route::middleware(['auth:sanctum', 'ativo'])->group(function () {
     Route::get('/confeccoes/{confeccao}',  [ConfeccaoController::class, 'show']);
     Route::put('/confeccoes/{confeccao}',  [ConfeccaoController::class, 'update']);
     Route::post('/confeccoes/{confeccao}', [ConfeccaoController::class, 'update']);
+
+    // Orçamentos de artes (somente admin)
+    Route::middleware('admin')->group(function () {
+        Route::get('/orcamentos/dashboard',              [OrcamentoController::class, 'dashboard']);
+        Route::get('/orcamentos',                        [OrcamentoController::class, 'index']);
+        Route::post('/orcamentos',                       [OrcamentoController::class, 'store']);
+        Route::put('/orcamentos/{orcamento}',            [OrcamentoController::class, 'update']);
+        Route::delete('/orcamentos/{orcamento}',         [OrcamentoController::class, 'destroy']);
+        Route::patch('/orcamentos/{orcamento}/status',   [OrcamentoController::class, 'status']);
+        Route::post('/orcamentos/{orcamento}/converter', [OrcamentoController::class, 'converter']);
+    });
 
     // Pedidos
     Route::get('/pedidos',               [PedidoController::class, 'index']);

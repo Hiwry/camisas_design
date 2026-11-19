@@ -7,6 +7,7 @@ export interface OrcamentoItem {
   servico: string
   data: string   // AAAA-MM-DD
   valor: string  // texto do input (aceita vírgula)
+  pedido_id?: number | null
 }
 
 export interface Orcamento {
