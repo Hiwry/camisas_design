@@ -501,3 +501,15 @@ export const orcamentoService = {
   converter: (id: number, data: { confeccao_id: number; tipo_impressao: string }) =>
     api.post(`/orcamentos/${id}/converter`, data).then((r) => r.data),
 }
+
+// ─── Financeiro: saídas e dashboards por origem (admin) ─────────────────────
+export type OrigemFin = 'pedidos' | 'orcamentos'
+export const financeiroService = {
+  dashboard: (origem: OrigemFin, periodo: string) =>
+    api.get('/financeiro/dashboard', { params: { origem, periodo } }).then((r) => r.data),
+  saidas: (params?: { origem?: OrigemFin; mes?: string }) => api.get('/saidas', { params }).then((r) => r.data),
+  criarSaida: (data: Record<string, unknown>) => api.post('/saidas', data).then((r) => r.data),
+  atualizarSaida: (id: number, data: Record<string, unknown>) => api.put(`/saidas/${id}`, data).then((r) => r.data),
+  excluirSaida: (id: number) => api.delete(`/saidas/${id}`).then((r) => r.data),
+  marcarPago: (pedidoId: number, pago: boolean) => api.patch(`/pedidos/${pedidoId}/pagamento`, { pago }).then((r) => r.data),
+}

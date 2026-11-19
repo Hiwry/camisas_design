@@ -36,6 +36,30 @@ class PedidoController extends Controller
         return response()->json($query->get());
     }
 
+    /** Admin: marca o pedido como pago / não pago (usado no Financeiro). */
+    public function pagamento(Request $request, Pedido $pedido)
+    {
+        $request->validate(['pago' => 'required|boolean']);
+
+        if ($request->boolean('pago')) {
+            $pedido->pagamento_status = 'pago';
+            $pedido->pago_em = now();
+        } else {
+            // Volta ao estado anterior: fluxo do bot (Pix/orçamento enviado) -> aguardando pagamento; senão nao_aplica
+            $veioDoBot = !empty($pedido->pix_txid) || !empty($pedido->orcamento_enviado_em);
+            $pedido->pagamento_status = $veioDoBot ? 'aguardando_pagamento' : 'nao_aplica';
+            $pedido->pago_em = null;
+        }
+        $pedido->save();
+
+        return response()->json([
+            'id' => $pedido->id,
+            'pago' => $pedido->pagamento_status === 'pago',
+            'pagamento_status' => $pedido->pagamento_status,
+            'pago_em' => $pedido->pago_em,
+        ]);
+    }
+
     public function show(Pedido $pedido)
     {
         $this->authorizePedido($pedido);
